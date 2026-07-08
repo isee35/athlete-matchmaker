@@ -1,13 +1,13 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
-type Step = "profile" | "sports" | "skills";
+type Step = "profile" | "sports" | "skills" | "availability";
 
 interface UserSportSelection {
   sportId: string;
@@ -17,6 +17,21 @@ interface UserSportSelection {
   skillRating?: string;
   skillVerified: boolean;
   notifyAllAlt: boolean;
+}
+
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
+  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+  "VA","WA","WV","WI","WY","DC",
+];
+
+const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+interface AvailSlot {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
 }
 
 export default function Onboarding() {
@@ -32,7 +47,10 @@ export default function Onboarding() {
   const [lastName, setLastName]   = useState("");
   const [city, setCity]           = useState("");
   const [state, setState]         = useState("");
+  const [dob, setDob]             = useState("");
+  const [phone, setPhone]         = useState("");
   const [usernameError, setUsernameError] = useState("");
+  const [dobError, setDobError]   = useState("");
 
   // Step 2 — Sports selection
   const [selectedSports, setSelectedSports] = useState<string[]>([]);
@@ -41,6 +59,9 @@ export default function Onboarding() {
   // Step 3 — Skills
   const [skillSelections, setSkillSelections] = useState<Record<string, UserSportSelection>>({});
 
+  // Step 4 — Availability
+  const [availSlots, setAvailSlots] = useState<AvailSlot[]>([]);
+
   async function checkUsername(val: string) {
     if (val.length < 3) { setUsernameError("Must be at least 3 characters"); return; }
     if (!/^[a-zA-Z0-9_]+$/.test(val)) { setUsernameError("Letters, numbers, and underscores only"); return; }
@@ -48,16 +69,56 @@ export default function Onboarding() {
     setUsernameError(data ? "Username is taken" : "");
   }
 
+  function validateDob(val: string): string {
+    if (!val) return "Date of birth is required";
+    const birth = new Date(val);
+    const now = new Date();
+    let age = now.getFullYear() - birth.getFullYear();
+    const m = now.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+    if (age < 13) return "You must be at least 13 to join";
+    if (age > 120) return "Invalid date of birth";
+    return "";
+  }
+
   async function handleProfileNext(e: React.FormEvent) {
     e.preventDefault();
     if (usernameError) return;
+    if (!firstName.trim()) { setError("First name is required"); return; }
+    if (!lastName.trim()) { setError("Last name is required"); return; }
+    if (!city.trim() || !state.trim()) { setError("City and state are required"); return; }
+    const dobErr = validateDob(dob);
+    if (dobErr) { setDobError(dobErr); return; }
+    setError("");
+    setDobError("");
     setStep("sports");
   }
 
+  function selectAllSports() {
+    const allIds = SPORTS.map((s) => s.id);
+    setSelectedSports(allIds);
+    const allSubs: Record<string, string[]> = {};
+    SPORTS.forEach((s) => {
+      allSubs[s.id] = s.subdivisions.map((sub) => sub.id);
+    });
+    setSportSubdivisions(allSubs);
+  }
+
   function toggleSport(sportId: string) {
-    setSelectedSports((prev) =>
-      prev.includes(sportId) ? prev.filter((s) => s !== sportId) : [...prev, sportId]
-    );
+    setSelectedSports((prev) => {
+      const next = prev.includes(sportId) ? prev.filter((s) => s !== sportId) : [...prev, sportId];
+      return next;
+    });
+    // Default all subdivisions when sport is first selected
+    if (!selectedSports.includes(sportId)) {
+      const sport = SPORTS.find((s) => s.id === sportId);
+      if (sport && sport.subdivisions.length > 0) {
+        setSportSubdivisions((prev) => ({
+          ...prev,
+          [sportId]: sport.subdivisions.map((sub) => sub.id),
+        }));
+      }
+    }
   }
 
   function toggleSubdivision(sportId: string, subId: string) {
@@ -73,7 +134,6 @@ export default function Onboarding() {
   function handleSportsNext() {
     if (selectedSports.length === 0) { setError("Select at least one sport."); return; }
     setError("");
-    // Initialize skill selections
     const initial: Record<string, UserSportSelection> = {};
     selectedSports.forEach((sportId) => {
       const sport = SPORTS.find((s) => s.id === sportId)!;
@@ -95,19 +155,42 @@ export default function Onboarding() {
     setSkillSelections((prev) => ({ ...prev, [sportId]: { ...prev[sportId], ...patch } }));
   }
 
+  function addAvailSlot() {
+    setAvailSlots((prev) => [...prev, { dayOfWeek: 0, startTime: "09:00", endTime: "12:00" }]);
+  }
+
+  function removeAvailSlot(i: number) {
+    setAvailSlots((prev) => prev.filter((_, idx) => idx !== i));
+  }
+
+  function updateAvailSlot(i: number, patch: Partial<AvailSlot>) {
+    setAvailSlots((prev) => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
+  }
+
   async function handleFinish() {
     setLoading(true);
     setError("");
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("Not signed in."); setLoading(false); return; }
 
+    const age = (() => {
+      const birth = new Date(dob);
+      const now = new Date();
+      let a = now.getFullYear() - birth.getFullYear();
+      if (now.getMonth() - birth.getMonth() < 0 || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) a--;
+      return a;
+    })();
+
     const { error: profileError } = await supabase.from("profiles").insert({
       id: user.id,
       username,
-      first_name: firstName || null,
-      last_name: lastName || null,
-      city: city || null,
-      state: state || null,
+      first_name: firstName,
+      last_name: lastName,
+      city,
+      state,
+      dob,
+      phone: phone.trim() || null,
+      onboarding_complete: true,
     });
     if (profileError) { setError(profileError.message); setLoading(false); return; }
 
@@ -121,23 +204,33 @@ export default function Onboarding() {
       skill_verified: s.skillVerified,
       notify_all_alt: s.notifyAllAlt,
     }));
-
     const { error: sportsError } = await supabase.from("user_sports").insert(sportsRows);
     if (sportsError) { setError(sportsError.message); setLoading(false); return; }
 
-    // Create default notification preferences
+    if (availSlots.length > 0) {
+      const availRows = availSlots.map((slot) => ({
+        user_id: user.id,
+        day_of_week: slot.dayOfWeek,
+        start_time: slot.startTime,
+        end_time: slot.endTime,
+        sport_ids: selectedSports,
+      }));
+      await supabase.from("availability_recurring").insert(availRows);
+    }
+
     await supabase.from("notification_preferences").insert({ user_id: user.id });
 
     router.push("/dashboard");
     router.refresh();
   }
 
-  const steps = ["profile", "sports", "skills"];
+  const steps: Step[] = ["profile", "sports", "skills", "availability"];
+  const stepLabels = ["Your info", "Sports", "Skill levels", "Availability"];
   const stepIndex = steps.indexOf(step);
 
   return (
     <main className="min-h-screen bg-[var(--background)] px-4 py-10">
-      <div className="max-w-lg mx-auto space-y-8">
+      <div className="max-w-2xl mx-auto space-y-8">
         {/* Header */}
         <div className="text-center space-y-1">
           <span className="text-2xl font-black gradient-text">Athlete Matchmaker</span>
@@ -145,16 +238,16 @@ export default function Onboarding() {
         </div>
 
         {/* Progress */}
-        <div className="flex items-center gap-2">
-          {["Your info", "Sports", "Skill levels"].map((label, i) => (
-            <div key={label} className="flex items-center gap-2 flex-1">
-              <div className={`flex items-center gap-2 ${i <= stepIndex ? "text-teal-400" : "text-[var(--muted)]"}`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border ${i < stepIndex ? "bg-teal-600 border-teal-600 text-white" : i === stepIndex ? "border-teal-500 text-teal-400" : "border-[var(--border)] text-[var(--muted)]"}`}>
+        <div className="flex items-center gap-1">
+          {stepLabels.map((label, i) => (
+            <div key={label} className="flex items-center gap-1 flex-1">
+              <div className={`flex items-center gap-1.5 ${i <= stepIndex ? "text-teal-400" : "text-[var(--muted)]"}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border flex-shrink-0 ${i < stepIndex ? "bg-teal-600 border-teal-600 text-white" : i === stepIndex ? "border-teal-500 text-teal-400" : "border-[var(--border)] text-[var(--muted)]"}`}>
                   {i < stepIndex ? "✓" : i + 1}
                 </div>
-                <span className="text-xs font-medium hidden sm:block">{label}</span>
+                <span className="text-xs font-medium hidden sm:block whitespace-nowrap">{label}</span>
               </div>
-              {i < 2 && <div className={`flex-1 h-px ${i < stepIndex ? "bg-teal-600" : "bg-[var(--border)]"}`} />}
+              {i < 3 && <div className={`flex-1 h-px ${i < stepIndex ? "bg-teal-600" : "bg-[var(--border)]"}`} />}
             </div>
           ))}
         </div>
@@ -163,6 +256,7 @@ export default function Onboarding() {
         {step === "profile" && (
           <form onSubmit={handleProfileNext} className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-4">
             <h2 className="text-lg font-bold">Your info</h2>
+            {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
             <Input
               label="Username *"
               value={username}
@@ -173,14 +267,45 @@ export default function Onboarding() {
               hint="Public-facing. Letters, numbers, underscores."
             />
             <div className="grid grid-cols-2 gap-3">
-              <Input label="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Bryce" />
-              <Input label="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Clifford" />
+              <Input label="First Name *" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Bryce" required />
+              <Input label="Last Name *" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Clifford" required />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Input label="City" value={city} onChange={(e) => setCity(e.target.value)} placeholder="San Diego" />
-              <Input label="State" value={state} onChange={(e) => setState(e.target.value)} placeholder="CA" />
+              <Input label="City *" value={city} onChange={(e) => setCity(e.target.value)} placeholder="San Diego" required />
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[var(--foreground)]">State *</label>
+                <select
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  required
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+                >
+                  <option value="">— select —</option>
+                  {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
-            <p className="text-xs text-[var(--muted)]">Location helps us match you with nearby athletes when regional filtering launches.</p>
+            <div>
+              <Input
+                label="Date of Birth *"
+                type="date"
+                value={dob}
+                onChange={(e) => { setDob(e.target.value); setDobError(validateDob(e.target.value)); }}
+                required
+                error={dobError}
+                hint="Must be 13+. Used for age-appropriate matching and not shown publicly."
+              />
+            </div>
+            <div>
+              <Input
+                label="Mobile Phone"
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(619) 555-0100"
+                hint="Optional. Private — only used for event contact and waitlist notifications."
+              />
+            </div>
             <Button type="submit" size="lg" className="w-full" disabled={!!usernameError || !username}>Continue →</Button>
           </form>
         )}
@@ -193,6 +318,14 @@ export default function Onboarding() {
               <p className="text-sm text-[var(--muted)] mt-1">Select everything you&apos;re interested in — you can always add more later.</p>
             </div>
             {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
+            {/* "Play anything" button */}
+            <button
+              type="button"
+              onClick={selectAllSports}
+              className="w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-teal-600/60 text-teal-400 text-sm font-semibold hover:border-teal-500 hover:bg-teal-600/10 transition-all cursor-pointer"
+            >
+              🎯 I&apos;ll play anything — notify me when fun things are happening!
+            </button>
             <div className="space-y-5">
               {SPORT_CATEGORIES.map((cat) => {
                 const sports = getSportsByCategory(cat.id);
@@ -202,7 +335,7 @@ export default function Onboarding() {
                     {cat.id === "alternative" && (
                       <p className="text-xs text-pink-400 mb-2">Selecting any alternative sport will notify you for all alternative sport lobbies.</p>
                     )}
-                    <div className="flex flex-wrap gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       {sports.map((sport) => {
                         const selected = selectedSports.includes(sport.id);
                         return (
@@ -210,7 +343,7 @@ export default function Onboarding() {
                             <button
                               type="button"
                               onClick={() => toggleSport(sport.id)}
-                              className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all cursor-pointer ${selected ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)] hover:border-teal-600"}`}
+                              className={`w-full px-3 py-2 rounded-xl text-sm font-medium border transition-all cursor-pointer text-left ${selected ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)] hover:border-teal-600"}`}
                             >
                               {sport.emoji} {sport.label}
                             </button>
@@ -262,43 +395,28 @@ export default function Onboarding() {
                 return (
                   <div key={sportId} className="border border-[var(--border)] rounded-xl p-4 space-y-3">
                     <p className="font-medium">{sport.emoji} {sport.label}</p>
-
                     {sport.skillType === "baa" && (
                       <div className="flex gap-2 flex-wrap">
                         {["beginner", "intermediate", "advanced", "i_don_t_know"].map((lvl) => (
-                          <button
-                            key={lvl}
-                            type="button"
+                          <button key={lvl} type="button"
                             onClick={() => updateSkill(sportId, { skillLevel: lvl === "i_don_t_know" ? undefined : lvl })}
-                            className={`px-3 py-1.5 rounded-xl text-sm border transition-all cursor-pointer capitalize ${(sel.skillLevel === lvl || (lvl === "i_don_t_know" && !sel.skillLevel)) ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)]"}`}
-                          >
+                            className={`px-3 py-1.5 rounded-xl text-sm border transition-all cursor-pointer capitalize ${(sel.skillLevel === lvl || (lvl === "i_don_t_know" && !sel.skillLevel)) ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)]"}`}>
                             {lvl === "i_don_t_know" ? "I don't know" : lvl.charAt(0).toUpperCase() + lvl.slice(1)}
                           </button>
                         ))}
                       </div>
                     )}
-
                     {(sport.skillType === "numeric_golf" || sport.skillType === "numeric_rating") && (
                       <div className="space-y-3">
                         <div className="flex gap-2 items-end">
                           <div className="flex-1">
-                            <Input
-                              label={sport.skillLabel ?? "Rating"}
-                              type="number"
-                              step="0.1"
-                              value={sel.skillRating ?? ""}
-                              onChange={(e) => updateSkill(sportId, { skillRating: e.target.value })}
-                              placeholder={sport.skillType === "numeric_golf" ? "e.g. 12.4" : "e.g. 4.2"}
-                            />
+                            <Input label={sport.skillLabel ?? "Rating"} type="number" step="0.1"
+                              value={sel.skillRating ?? ""} onChange={(e) => updateSkill(sportId, { skillRating: e.target.value })}
+                              placeholder={sport.skillType === "numeric_golf" ? "e.g. 12.4" : "e.g. 4.2"} />
                           </div>
                           {sel.skillRating && (
                             <label className="flex items-center gap-2 text-sm text-[var(--muted-light)] cursor-pointer pb-2.5">
-                              <input
-                                type="checkbox"
-                                checked={sel.skillVerified}
-                                onChange={(e) => updateSkill(sportId, { skillVerified: e.target.checked })}
-                                className="accent-teal-500"
-                              />
+                              <input type="checkbox" checked={sel.skillVerified} onChange={(e) => updateSkill(sportId, { skillVerified: e.target.checked })} className="accent-teal-500" />
                               {sport.skillVerifiedLabel ?? "Verified"}
                             </label>
                           )}
@@ -308,20 +426,13 @@ export default function Onboarding() {
                             <p className="text-xs text-[var(--muted)] mb-2">Or if you don&apos;t have a rating:</p>
                             <div className="flex gap-2 flex-wrap">
                               {["beginner", "intermediate", "advanced"].map((lvl) => (
-                                <button
-                                  key={lvl}
-                                  type="button"
-                                  onClick={() => updateSkill(sportId, { skillLevel: lvl })}
-                                  className={`px-3 py-1.5 rounded-xl text-sm border transition-all cursor-pointer ${sel.skillLevel === lvl ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)]"}`}
-                                >
+                                <button key={lvl} type="button" onClick={() => updateSkill(sportId, { skillLevel: lvl })}
+                                  className={`px-3 py-1.5 rounded-xl text-sm border transition-all cursor-pointer ${sel.skillLevel === lvl ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)]"}`}>
                                   {lvl.charAt(0).toUpperCase() + lvl.slice(1)}
                                 </button>
                               ))}
                             </div>
                           </div>
-                        )}
-                        {sport.skillType === "numeric_golf" && !sel.skillRating && (
-                          <p className="text-xs text-[var(--muted)]">Average score? Enter it above — we&apos;ll use it for rough matching.</p>
                         )}
                       </div>
                     )}
@@ -331,6 +442,53 @@ export default function Onboarding() {
             </div>
             <div className="flex gap-3 pt-2">
               <Button variant="ghost" onClick={() => setStep("sports")} className="flex-1">← Back</Button>
+              <Button onClick={() => setStep("availability")} className="flex-1">Continue →</Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Availability */}
+        {step === "availability" && (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
+            <div>
+              <h2 className="text-lg font-bold">When are you usually available?</h2>
+              <p className="text-sm text-[var(--muted)] mt-1">Helps us surface lobbies that fit your schedule. You can update this anytime.</p>
+            </div>
+            {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
+            <div className="space-y-3">
+              {availSlots.map((slot, i) => (
+                <div key={i} className="flex items-center gap-2 bg-[var(--surface-2)] rounded-xl p-3">
+                  <select
+                    value={slot.dayOfWeek}
+                    onChange={(e) => updateAvailSlot(i, { dayOfWeek: parseInt(e.target.value) })}
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+                  >
+                    {DAYS.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
+                  </select>
+                  <input
+                    type="time"
+                    value={slot.startTime}
+                    onChange={(e) => updateAvailSlot(i, { startTime: e.target.value })}
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+                  />
+                  <span className="text-[var(--muted)] text-xs">to</span>
+                  <input
+                    type="time"
+                    value={slot.endTime}
+                    onChange={(e) => updateAvailSlot(i, { endTime: e.target.value })}
+                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+                  />
+                  <button type="button" onClick={() => removeAvailSlot(i)} className="ml-auto text-[var(--muted)] hover:text-red-400 text-lg leading-none cursor-pointer">×</button>
+                </div>
+              ))}
+              <button type="button" onClick={addAvailSlot}
+                className="w-full py-2 px-4 rounded-xl border border-dashed border-[var(--border)] text-[var(--muted)] text-sm hover:border-teal-600 hover:text-teal-400 transition-all cursor-pointer">
+                + Add time slot
+              </button>
+            </div>
+            <p className="text-xs text-[var(--muted)]">No slots? No problem — you can add availability from your profile later.</p>
+            <div className="flex gap-3 pt-2">
+              <Button variant="ghost" onClick={() => setStep("skills")} className="flex-1">← Back</Button>
               <Button variant="squad" size="lg" onClick={handleFinish} loading={loading} className="flex-1">
                 Let&apos;s go! 🏆
               </Button>

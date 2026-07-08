@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getSportById } from "@/lib/sports";
 import { LobbyActions } from "./LobbyActions";
 import { LobbyChat } from "./LobbyChat";
+import { NoShowButton } from "./NoShowButton";
 import { Card } from "@/components/Card";
 import Link from "next/link";
 
@@ -106,7 +107,7 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
         )}
 
         <p className="text-xs text-[var(--muted)]">
-          Hosted by <Link href={`/profile/${lobby.profiles?.username}`} className="text-teal-400">@{lobby.profiles?.username}</Link>
+          Hosted by <Link href={`/u/${lobby.profiles?.username}`} className="text-teal-400">@{lobby.profiles?.username}</Link>
         </p>
       </div>
 
@@ -136,9 +137,15 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
                   {m.profiles?.city && <p className="text-xs text-[var(--muted)]">{m.profiles.city}</p>}
                 </div>
               </div>
-              {m.user_id === lobby.owner_id && (
-                <span className="text-xs bg-pink-600/20 text-pink-400 border border-pink-600/30 px-2 py-0.5 rounded-full">Host</span>
-              )}
+              <div className="flex items-center gap-2">
+                {m.user_id === lobby.owner_id && (
+                  <span className="text-xs bg-pink-600/20 text-pink-400 border border-pink-600/30 px-2 py-0.5 rounded-full">Host</span>
+                )}
+                {/* No-show button: only shown after event date, only to other members, not self */}
+                {user && m.user_id !== user.id && myMembership?.status === "joined" && lobby.date < new Date().toISOString().split("T")[0] && (
+                  <NoShowButton lobbyId={id} reportedUserId={m.user_id} reportedUsername={m.profiles?.username} />
+                )}
+              </div>
             </div>
           ))}
         </div>

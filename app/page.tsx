@@ -71,8 +71,15 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-[var(--border)] px-6 py-6 text-center text-xs text-[var(--muted)]">
-        © 2026 Athlete Matchmaker · Built for athletes, by athletes
+      <footer className="border-t border-[var(--border)] px-6 py-6 text-center text-xs text-[var(--muted)] space-y-2">
+        <div className="flex items-center justify-center gap-4">
+          <Link href="/privacy" className="hover:text-teal-400 transition-colors">Privacy Policy</Link>
+          <span>·</span>
+          <Link href="/terms" className="hover:text-teal-400 transition-colors">Terms of Service</Link>
+          <span>·</span>
+          <a href="mailto:support@athletematchmaker.com" className="hover:text-teal-400 transition-colors">Contact</a>
+        </div>
+        <p>© 2026 Athlete Matchmaker · Built for athletes, by athletes · Serving San Diego, OC &amp; LA</p>
       </footer>
     </main>
   );

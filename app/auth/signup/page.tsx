@@ -80,7 +80,11 @@ export default function Signup() {
           <Link href="/auth/login" className="text-teal-400 hover:text-teal-300">Sign in</Link>
         </p>
         <p className="text-center text-xs text-[var(--muted)]">
-          By creating an account you agree to our terms of service. It&apos;s free, always.
+          By creating an account you agree to our{" "}
+          <Link href="/terms" className="text-teal-400 hover:text-teal-300">Terms of Service</Link>
+          {" "}and{" "}
+          <Link href="/privacy" className="text-teal-400 hover:text-teal-300">Privacy Policy</Link>.
+          It&apos;s free, always.
         </p>
       </div>
     </main>
