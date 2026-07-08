@@ -3,11 +3,13 @@ import { redirect } from "next/navigation";
 import { Card } from "@/components/Card";
 import { ReviewReport } from "./ReviewReport";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminReports() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: me } = await supabase.from("profiles").select("is_admin").eq("id", user!.id).single();
-  if (!me?.is_admin) redirect("/dashboard");
+  const { data: me } = await supabase.from("profiles").select("role").eq("id", user!.id).single();
+  if (!me || !["admin", "ambassador"].includes(me.role)) redirect("/dashboard");
 
   const { data: reports } = await supabase
     .from("no_show_reports")

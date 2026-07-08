@@ -9,15 +9,18 @@ export default async function ProtectedLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_admin, username")
+    .select("role, username, onboarding_complete")
     .eq("id", user.id)
     .single();
 
   if (!profile) redirect("/onboarding");
+  if (!profile.onboarding_complete) redirect("/onboarding");
+
+  const role = profile.role ?? "user";
 
   return (
     <div className="flex min-h-screen">
-      <Nav isAdmin={profile.is_admin} />
+      <Nav role={role} />
       <div className="flex-1 md:ml-56 pb-20 md:pb-0">
         {children}
       </div>

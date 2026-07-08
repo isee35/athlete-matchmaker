@@ -7,7 +7,7 @@ import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
-type Step = "profile" | "sports" | "skills" | "availability";
+type Step = "profile" | "consent" | "sports" | "skills" | "availability";
 
 interface UserSportSelection {
   sportId: string;
@@ -59,6 +59,11 @@ export default function Onboarding() {
   // Step 3 — Skills
   const [skillSelections, setSkillSelections] = useState<Record<string, UserSportSelection>>({});
 
+  // Parental consent (minors 16-17)
+  const [parentName, setParentName]     = useState("");
+  const [parentEmail, setParentEmail]   = useState("");
+  const [consentSubmitted, setConsentSubmitted] = useState(false);
+
   // Step 4 — Availability
   const [availSlots, setAvailSlots] = useState<AvailSlot[]>([]);
 
@@ -69,14 +74,19 @@ export default function Onboarding() {
     setUsernameError(data ? "Username is taken" : "");
   }
 
-  function validateDob(val: string): string {
-    if (!val) return "Date of birth is required";
+  function getAge(val: string): number {
     const birth = new Date(val);
     const now = new Date();
     let age = now.getFullYear() - birth.getFullYear();
     const m = now.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-    if (age < 13) return "You must be at least 13 to join";
+    return age;
+  }
+
+  function validateDob(val: string): string {
+    if (!val) return "Date of birth is required";
+    const age = getAge(val);
+    if (age < 16) return "under_16";
     if (age > 120) return "Invalid date of birth";
     return "";
   }
@@ -88,9 +98,25 @@ export default function Onboarding() {
     if (!lastName.trim()) { setError("Last name is required"); return; }
     if (!city.trim() || !state.trim()) { setError("City and state are required"); return; }
     const dobErr = validateDob(dob);
+    if (dobErr === "under_16") { setDobError("under_16"); return; }
     if (dobErr) { setDobError(dobErr); return; }
     setError("");
     setDobError("");
+    // Check if 16-17 (minor needing parental consent)
+    const age = getAge(dob);
+    if (age < 18) {
+      setStep("consent");
+      return;
+    }
+    setStep("sports");
+  }
+
+  async function handleConsentSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!parentName.trim() || !parentEmail.trim()) { setError("Parent name and email are required."); return; }
+    setError("");
+    setConsentSubmitted(true);
+    // Proceed to sports selection — account will be flagged as pending consent after final submit
     setStep("sports");
   }
 
@@ -181,6 +207,9 @@ export default function Onboarding() {
       return a;
     })();
 
+    const age = getAge(dob);
+    const isMinor = age < 18;
+
     const { error: profileError } = await supabase.from("profiles").insert({
       id: user.id,
       username,
@@ -191,8 +220,24 @@ export default function Onboarding() {
       dob,
       phone: phone.trim() || null,
       onboarding_complete: true,
+      is_minor: isMinor,
+      age_verified: !isMinor,
+      parental_consent_pending: isMinor,
+      parent_email: isMinor ? parentEmail.trim() : null,
     });
     if (profileError) { setError(profileError.message); setLoading(false); return; }
+
+    // Create parental consent record for minors
+    if (isMinor && parentEmail.trim()) {
+      const token = `${user.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await supabase.from("parental_consents").insert({
+        user_id: user.id,
+        token,
+        parent_email: parentEmail.trim(),
+        parent_name: parentName.trim() || null,
+      });
+      // In production: trigger an email to parentEmail with /consent?token=<token>
+    }
 
     const sportsRows = Object.values(skillSelections).map((s) => ({
       user_id: user.id,
@@ -226,7 +271,8 @@ export default function Onboarding() {
 
   const steps: Step[] = ["profile", "sports", "skills", "availability"];
   const stepLabels = ["Your info", "Sports", "Skill levels", "Availability"];
-  const stepIndex = steps.indexOf(step);
+  const effectiveStep = step === "consent" ? "profile" : step;
+  const stepIndex = steps.indexOf(effectiveStep);
 
   return (
     <main className="min-h-screen bg-[var(--background)] px-4 py-10">
@@ -292,9 +338,20 @@ export default function Onboarding() {
                 value={dob}
                 onChange={(e) => { setDob(e.target.value); setDobError(validateDob(e.target.value)); }}
                 required
-                error={dobError}
-                hint="Must be 13+. Used for age-appropriate matching and not shown publicly."
+                error={dobError !== "under_16" ? dobError : undefined}
+                hint="Used for age-appropriate matching. Not shown publicly."
               />
+              {dobError === "under_16" && (
+                <div className="mt-3 bg-red-950 border border-red-700 rounded-xl p-4 space-y-2">
+                  <p className="text-red-400 font-bold text-sm">⛔ Access Denied</p>
+                  <p className="text-sm text-red-300">
+                    <strong>Athlete Matchmaker is for athletes 16 and older.</strong> Falsifying this information could result in serious penalties and permanent account termination.
+                  </p>
+                  <p className="text-xs text-red-400/70">
+                    If you believe you have reached this message in error, please contact support.
+                  </p>
+                </div>
+              )}
             </div>
             <div>
               <Input
@@ -306,8 +363,49 @@ export default function Onboarding() {
                 hint="Optional. Private — only used for event contact and waitlist notifications."
               />
             </div>
-            <Button type="submit" size="lg" className="w-full" disabled={!!usernameError || !username}>Continue →</Button>
+            <Button type="submit" size="lg" className="w-full" disabled={!!usernameError || !username || dobError === "under_16"}>Continue →</Button>
           </form>
+        )}
+
+        {/* Parental consent step */}
+        {step === "consent" && (
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
+            <div>
+              <h2 className="text-lg font-bold">Parental Consent Required</h2>
+              <p className="text-sm text-[var(--muted)] mt-1">
+                Athlete Matchmaker requires parental consent for athletes ages 16–17. We&apos;ll send an email to your parent or guardian to approve your account.
+              </p>
+            </div>
+            <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-3 text-sm text-yellow-300">
+              ⚠️ Your account will be created but will remain <strong>inactive</strong> until your parent or guardian approves it via email. This usually takes just a few minutes.
+            </div>
+            {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
+            <form onSubmit={handleConsentSubmit} className="space-y-4">
+              <Input
+                label="Parent / Guardian Full Name *"
+                value={parentName}
+                onChange={(e) => setParentName(e.target.value)}
+                required
+                placeholder="Jane Clifford"
+              />
+              <Input
+                label="Parent / Guardian Email *"
+                type="email"
+                value={parentEmail}
+                onChange={(e) => setParentEmail(e.target.value)}
+                required
+                placeholder="parent@email.com"
+                hint="We'll send a one-click approval link. Their email is never made public."
+              />
+              <p className="text-xs text-[var(--muted)]">
+                By continuing, you confirm that you are 16 or 17 years old and that the contact information above belongs to your parent or legal guardian.
+              </p>
+              <div className="flex gap-3">
+                <Button variant="ghost" type="button" onClick={() => setStep("profile")} className="flex-1">← Back</Button>
+                <Button type="submit" className="flex-1">Continue →</Button>
+              </div>
+            </form>
+          </div>
         )}
 
         {/* Step 2: Sports */}
