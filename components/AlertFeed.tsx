@@ -41,6 +41,12 @@ export function AlertFeed({ alerts: initial, showHistory }: { alerts: Alert[]; s
     router.refresh();
   }
 
+  async function remove(alertId: string) {
+    setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    await supabase.from("admin_alerts").delete().eq("id", alertId);
+    router.refresh();
+  }
+
   if (alerts.length === 0) {
     return (
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-6 text-center text-sm text-[var(--muted)]">
@@ -78,15 +84,24 @@ export function AlertFeed({ alerts: initial, showHistory }: { alerts: Alert[]; s
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
             <p className="text-xs text-[var(--muted)] whitespace-nowrap">{new Date(alert.created_at).toLocaleDateString()}</p>
-            {!alert.resolved && (
+            <div className="flex items-center gap-1">
+              {!alert.resolved && (
+                <button
+                  onClick={() => resolve(alert.id)}
+                  disabled={resolving === alert.id}
+                  className="text-xs bg-teal-900/30 border border-teal-700/30 text-teal-400 px-2.5 py-1 rounded-lg hover:bg-teal-900/50 transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {resolving === alert.id ? "…" : "✓ Done"}
+                </button>
+              )}
               <button
-                onClick={() => resolve(alert.id)}
-                disabled={resolving === alert.id}
-                className="text-xs bg-teal-900/30 border border-teal-700/30 text-teal-400 px-2.5 py-1 rounded-lg hover:bg-teal-900/50 transition-colors disabled:opacity-50 cursor-pointer"
+                onClick={() => remove(alert.id)}
+                className="text-xs text-[var(--muted)] hover:text-red-400 px-1.5 py-1 rounded-lg hover:bg-red-900/20 transition-colors cursor-pointer"
+                title="Delete permanently"
               >
-                {resolving === alert.id ? "…" : "✓ Done"}
+                🗑
               </button>
-            )}
+            </div>
           </div>
         </div>
       ))}
