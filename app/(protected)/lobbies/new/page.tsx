@@ -134,7 +134,7 @@ export default function NewLobby() {
         )}
 
         {isCustom ? (
-          <div className="space-y-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-4">
+          <div className="space-y-4">
             <Input label="Lobby Title *" value={customTitle} onChange={(e) => setCustomTitle(e.target.value)} required placeholder="e.g. Sunday Frisbee + Hangout" />
             <div>
               <label className="text-sm font-medium text-[var(--muted-light)]">Description *</label>
@@ -142,56 +142,62 @@ export default function NewLobby() {
                 placeholder="Tell people what this is about..."
                 className="w-full mt-1 bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] placeholder-[var(--muted)] rounded-xl px-4 py-2.5 text-sm focus:border-teal-500 focus:outline-none transition-colors resize-none" />
             </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--muted-light)] block mb-1">Closest sport category *</label>
-              <div className="flex flex-wrap gap-1.5">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-[var(--muted-light)]">Closest sport category *</label>
+              <select
+                value={parentSportId}
+                onChange={(e) => setParentSportId(e.target.value)}
+                required
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+              >
+                <option value="">— select category —</option>
                 {SPORT_CATEGORIES.map((cat) => (
-                  <button key={cat.id} type="button" onClick={() => setParentSportId(cat.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${parentSportId === cat.id ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface)] border-[var(--border)] text-[var(--muted-light)] hover:border-teal-600"}`}>
-                    {cat.emoji} {cat.label}
-                  </button>
+                  <option key={cat.id} value={cat.id}>{cat.emoji} {cat.label}</option>
                 ))}
-              </div>
+              </select>
             </div>
           </div>
         ) : (
           <>
             <Input label="Lobby Title *" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g. Sunday Pickleball at Morley" />
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-[var(--muted-light)]">Sport *</label>
-              <div className="space-y-3">
-                {SPORT_CATEGORIES.map((cat) => {
-                  const sports = getSportsByCategory(cat.id);
-                  return (
-                    <div key={cat.id}>
-                      <p className="text-xs text-[var(--muted)] mb-1">{cat.emoji} {cat.label}</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {sports.map((sport) => (
-                          <button key={sport.id} type="button"
-                            onClick={() => { setSportId(sport.id); setSubdivisionId(""); }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all cursor-pointer ${sportId === sport.id ? "bg-teal-600/20 border-teal-500 text-teal-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)] hover:border-teal-600"}`}>
-                            {sport.emoji} {sport.label}
-                          </button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-[var(--muted-light)]">Sport *</label>
+                <select
+                  value={sportId}
+                  onChange={(e) => { setSportId(e.target.value); setSubdivisionId(""); }}
+                  required
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+                >
+                  <option value="">— select sport —</option>
+                  {SPORT_CATEGORIES.map((cat) => {
+                    const sports = getSportsByCategory(cat.id);
+                    return (
+                      <optgroup key={cat.id} label={`${cat.emoji} ${cat.label}`}>
+                        {sports.map((s) => (
+                          <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>
                         ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                      </optgroup>
+                    );
+                  })}
+                </select>
               </div>
-            </div>
-            {selectedSport && selectedSport.subdivisions.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-[var(--muted-light)]">Format</label>
-                <div className="flex flex-wrap gap-2">
-                  {selectedSport.subdivisions.map((sub) => (
-                    <button key={sub.id} type="button" onClick={() => setSubdivisionId(sub.id)}
-                      className={`px-3 py-1.5 rounded-xl text-sm border transition-all cursor-pointer ${subdivisionId === sub.id ? "bg-pink-600/20 border-pink-500 text-pink-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)] hover:border-pink-500"}`}>
-                      {sub.label}
-                    </button>
-                  ))}
+              {selectedSport && selectedSport.subdivisions.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-[var(--muted-light)]">Format</label>
+                  <select
+                    value={subdivisionId}
+                    onChange={(e) => setSubdivisionId(e.target.value)}
+                    className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
+                  >
+                    <option value="">— any format —</option>
+                    {selectedSport.subdivisions.map((sub) => (
+                      <option key={sub.id} value={sub.id}>{sub.label}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
 
