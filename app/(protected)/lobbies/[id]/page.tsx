@@ -17,9 +17,10 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_RE.test(id)) notFound();
 
+  // Query lobby without relational join to avoid PostgREST schema cache issues
   const { data: lobby, error: lobbyErr } = await supabase
     .from("lobbies")
-    .select("*, profiles(username, first_name)")
+    .select("*")
     .eq("id", id)
     .single();
 
@@ -28,11 +29,21 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
     notFound();
   }
 
-  const { data: members } = await supabase
-    .from("lobby_members")
-    .select("*, profiles(username, first_name, last_name, city)")
-    .eq("lobby_id", id)
-    .order("joined_at");
+  // Fetch owner profile separately
+  const { data: ownerProfile } = await supabase
+    .from("profiles")
+    .select("username, first_name")
+    .eq("id", lobby.owner_id)
+    .single();
+
+  const [membersRes] = await Promise.all([
+    supabase
+      .from("lobby_members")
+      .select("user_id, status, waitlist_position, joined_at, profiles(username, first_name, last_name, city)")
+      .eq("lobby_id", id)
+      .order("joined_at"),
+  ]);
+  const members = membersRes.data;
 
   const sport = getSportById(lobby.sport_id);
   const joined = members?.filter((m: any) => m.status === "joined") ?? [];
@@ -115,7 +126,7 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
         )}
 
         <p className="text-xs text-[var(--muted)]">
-          Hosted by <Link href={`/u/${lobby.profiles?.username}`} className="text-teal-400">@{lobby.profiles?.username}</Link>
+          Hosted by <Link href={`/u/${ownerProfile?.username}`} className="text-teal-400">@{ownerProfile?.username}</Link>
         </p>
       </div>
 
