@@ -14,13 +14,19 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: lobby } = await supabase
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(id)) notFound();
+
+  const { data: lobby, error: lobbyErr } = await supabase
     .from("lobbies")
     .select("*, profiles(username, first_name)")
     .eq("id", id)
     .single();
 
-  if (!lobby) notFound();
+  if (!lobby) {
+    console.error("Lobby not found:", id, lobbyErr?.message);
+    notFound();
+  }
 
   const { data: members } = await supabase
     .from("lobby_members")

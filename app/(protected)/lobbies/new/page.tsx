@@ -104,7 +104,17 @@ export default function NewLobby() {
       pending_approval: needsApproval,
     }).select("id").single();
 
-    if (lobbyError) { setError(lobbyError.message); setLoading(false); return; }
+    if (lobbyError) {
+      setError(`Could not create lobby: ${lobbyError.message || lobbyError.code || JSON.stringify(lobbyError)}`);
+      setLoading(false);
+      return;
+    }
+
+    if (!data?.id) {
+      setError("Lobby was not created — no ID returned. Please try again.");
+      setLoading(false);
+      return;
+    }
 
     // Auto-join as owner
     await supabase.from("lobby_members").insert({ lobby_id: data.id, user_id: user.id });
