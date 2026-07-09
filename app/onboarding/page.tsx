@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
+import { AvailabilityPicker, RecurringBlock, SpecificBlock, recurringToDB, specificToDB } from "@/components/AvailabilityPicker";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
@@ -65,7 +66,8 @@ export default function Onboarding() {
   const [consentSubmitted, setConsentSubmitted] = useState(false);
 
   // Step 4 — Availability
-  const [availSlots, setAvailSlots] = useState<AvailSlot[]>([]);
+  const [recurringBlocks, setRecurringBlocks] = useState<RecurringBlock[]>([]);
+  const [specificBlocks, setSpecificBlocks]   = useState<SpecificBlock[]>([]);
 
   async function checkUsername(val: string) {
     if (val.length < 3) { setUsernameError("Must be at least 3 characters"); return; }
@@ -252,16 +254,12 @@ export default function Onboarding() {
     const { error: sportsError } = await supabase.from("user_sports").insert(sportsRows);
     if (sportsError) { setError(sportsError.message); setLoading(false); return; }
 
-    if (availSlots.length > 0) {
-      const availRows = availSlots.map((slot) => ({
-        user_id: user.id,
-        day_of_week: slot.dayOfWeek,
-        start_time: slot.startTime,
-        end_time: slot.endTime,
-        sport_ids: selectedSports,
-      }));
-      await supabase.from("availability_recurring").insert(availRows);
-    }
+    const recRows  = recurringToDB(recurringBlocks, user.id);
+    const specRows = specificToDB(specificBlocks, user.id);
+    await Promise.all([
+      recRows.length  > 0 ? supabase.from("availability_recurring").insert(recRows)  : Promise.resolve(),
+      specRows.length > 0 ? supabase.from("availability_specific").insert(specRows) : Promise.resolve(),
+    ]);
 
     await supabase.from("notification_preferences").insert({ user_id: user.id });
 
@@ -550,41 +548,15 @@ export default function Onboarding() {
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-5">
             <div>
               <h2 className="text-lg font-bold">When are you usually available?</h2>
-              <p className="text-sm text-[var(--muted)] mt-1">Helps us surface lobbies that fit your schedule. You can update this anytime.</p>
+              <p className="text-sm text-[var(--muted)] mt-1">Drag to block off time on the weekly grid, or pick specific days. Skip it and add later anytime.</p>
             </div>
             {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
-            <div className="space-y-3">
-              {availSlots.map((slot, i) => (
-                <div key={i} className="flex items-center gap-2 bg-[var(--surface-2)] rounded-xl p-3">
-                  <select
-                    value={slot.dayOfWeek}
-                    onChange={(e) => updateAvailSlot(i, { dayOfWeek: parseInt(e.target.value) })}
-                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
-                  >
-                    {DAYS.map((d, idx) => <option key={d} value={idx}>{d}</option>)}
-                  </select>
-                  <input
-                    type="time"
-                    value={slot.startTime}
-                    onChange={(e) => updateAvailSlot(i, { startTime: e.target.value })}
-                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
-                  />
-                  <span className="text-[var(--muted)] text-xs">to</span>
-                  <input
-                    type="time"
-                    value={slot.endTime}
-                    onChange={(e) => updateAvailSlot(i, { endTime: e.target.value })}
-                    className="bg-[var(--surface)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-teal-500"
-                  />
-                  <button type="button" onClick={() => removeAvailSlot(i)} className="ml-auto text-[var(--muted)] hover:text-red-400 text-lg leading-none cursor-pointer">×</button>
-                </div>
-              ))}
-              <button type="button" onClick={addAvailSlot}
-                className="w-full py-2 px-4 rounded-xl border border-dashed border-[var(--border)] text-[var(--muted)] text-sm hover:border-teal-600 hover:text-teal-400 transition-all cursor-pointer">
-                + Add time slot
-              </button>
-            </div>
-            <p className="text-xs text-[var(--muted)]">No slots? No problem — you can add availability from your profile later.</p>
+            <AvailabilityPicker
+              userSportIds={selectedSports}
+              initialRecurring={recurringBlocks}
+              initialSpecific={specificBlocks}
+              onChange={(r, s) => { setRecurringBlocks(r); setSpecificBlocks(s); }}
+            />
             <div className="flex gap-3 pt-2">
               <Button variant="ghost" onClick={() => setStep("skills")} className="flex-1">← Back</Button>
               <Button variant="squad" size="lg" onClick={handleFinish} loading={loading} className="flex-1">
