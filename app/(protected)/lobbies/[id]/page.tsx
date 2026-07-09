@@ -24,18 +24,7 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
     .eq("id", id)
     .single();
 
-  if (!lobby) {
-    // Debug: show what Supabase returned instead of a blank 404
-    return (
-      <div className="p-6 space-y-4 max-w-xl">
-        <h1 className="text-xl font-bold text-red-400">Lobby not found</h1>
-        <p className="text-sm text-[var(--muted)]">ID: <code className="text-xs">{id}</code></p>
-        <p className="text-sm text-red-300">Error: {lobbyErr?.message ?? "no error message"}</p>
-        <p className="text-sm text-red-300">Code: {lobbyErr?.code ?? "no code"}</p>
-        <p className="text-sm text-[var(--muted)]">The lobby was created client-side but the server can&apos;t find it. This is a Supabase/RLS issue.</p>
-      </div>
-    );
-  }
+  if (!lobby) notFound();
 
   // Fetch owner profile separately
   const { data: ownerProfile } = await supabase

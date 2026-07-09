@@ -132,7 +132,8 @@ export default function NewLobby() {
       });
     }
 
-    router.push(`/lobbies/${data.id}`);
+    // Hard navigation bypasses Next.js router cache (which was serving stale 404s)
+    window.location.href = `/lobbies/${data.id}`;
   }
 
   return (
