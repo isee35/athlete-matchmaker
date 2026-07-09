@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/Card";
+import { AlertFeed } from "@/components/AlertFeed";
 
 export const dynamic = "force-dynamic";
 
@@ -144,25 +145,17 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Admin alerts feed */}
-      {(alerts ?? []).length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider mb-3">Recent Alerts</h2>
-          <div className="space-y-2">
-            {(alerts ?? []).map((alert: any) => (
-              <div key={alert.id} className="flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3">
-                <span className="text-lg mt-0.5">
-                  {alert.type === "milestone_50" ? "🏆" : alert.type === "pending_approval" ? "🎮" : alert.type === "no_show_flag" ? "⚠️" : "📌"}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{alert.title}</p>
-                  <p className="text-xs text-[var(--muted)] mt-0.5">{alert.body}</p>
-                </div>
-                <p className="text-xs text-[var(--muted)] whitespace-nowrap">{new Date(alert.created_at).toLocaleDateString()}</p>
-              </div>
-            ))}
-          </div>
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">
+            Pending Alerts {(alerts ?? []).length > 0 && `(${(alerts ?? []).length})`}
+          </h2>
+          <Link href="/admin/alerts" className="text-xs text-teal-400 hover:text-teal-300">
+            View completed history →
+          </Link>
         </div>
-      )}
+        <AlertFeed alerts={alerts ?? []} />
+      </div>
 
       {/* Sport interest breakdown */}
       <div>

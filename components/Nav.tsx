@@ -17,6 +17,7 @@ const adminLinks = [
   { href: "/admin/lobbies",      label: "Lobbies",     icon: "🎮" },
   { href: "/admin/users",        label: "Users",       icon: "👥" },
   { href: "/admin/reports",      label: "Reports",     icon: "⚠️" },
+  { href: "/admin/alerts",       label: "History",     icon: "✅" },
   { href: "/admin/analytics",    label: "Analytics",   icon: "📊" },
 ];
 

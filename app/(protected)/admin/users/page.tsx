@@ -131,8 +131,8 @@ export default async function AdminUsersPage({
               </p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <Link href={`/u/${u.username}`} className="text-xs text-teal-400 hover:text-teal-300">
-                Profile
+              <Link href={`/admin/users/${u.id}`} className="text-xs text-teal-400 hover:text-teal-300">
+                View →
               </Link>
               <AdminUserActions userId={u.id} isFlagged={u.soft_flag} isAdmin={u.role === "admin"} />
             </div>
