@@ -29,7 +29,7 @@ export default async function AdminUsersPage({
 
   let query = supabase
     .from("profiles")
-    .select("id, username, first_name, last_name, role, is_minor, parental_consent_pending, lobby_count, created_at, city, state, soft_flag, no_show_count")
+    .select("id, username, first_name, last_name, role, is_minor, parental_consent_pending, lobby_count, created_at, city, state, soft_flag, no_show_count, signup_number, plan")
     .order("created_at", { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -116,6 +116,9 @@ export default async function AdminUsersPage({
             <div className="space-y-0.5 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-medium text-sm">@{u.username ?? "—"}</p>
+                {u.signup_number && <span className="text-xs text-[var(--muted)] font-mono">#{u.signup_number}</span>}
+                {u.signup_number && u.signup_number <= 1000 && <span className="text-xs bg-yellow-900/20 text-yellow-400 border border-yellow-700/30 px-2 py-0.5 rounded-full">🏅 Founder</span>}
+                {u.plan === "paid" && <span className="text-xs bg-teal-600/20 text-teal-400 border border-teal-600/30 px-2 py-0.5 rounded-full">⚡ Paid</span>}
                 {u.role === "admin" && <span className="text-xs bg-pink-600/20 text-pink-400 border border-pink-600/30 px-2 py-0.5 rounded-full">Admin</span>}
                 {u.role === "ambassador" && <span className="text-xs bg-yellow-600/20 text-yellow-400 border border-yellow-600/30 px-2 py-0.5 rounded-full">Ambassador</span>}
                 {u.is_minor && <span className="text-xs bg-blue-600/20 text-blue-400 border border-blue-600/30 px-2 py-0.5 rounded-full">Minor</span>}

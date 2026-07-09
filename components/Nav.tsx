@@ -8,6 +8,7 @@ const userLinks = [
   { href: "/dashboard",     label: "Dashboard",   icon: "⚡" },
   { href: "/lobbies",       label: "Lobbies",      icon: "🎮" },
   { href: "/availability",  label: "Availability", icon: "📅" },
+  { href: "/players",       label: "Players",      icon: "🏅" },
   { href: "/notifications", label: "Alerts",       icon: "🔔" },
   { href: "/profile",       label: "Profile",      icon: "👤" },
 ];

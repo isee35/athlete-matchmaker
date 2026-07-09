@@ -115,6 +115,10 @@ export default async function AdminUserDetailPage({
               <h1 className="text-xl font-black">{profile.first_name} {profile.last_name}</h1>
               <p className="text-sm text-[var(--muted)]">@{profile.username ?? "—"}</p>
               <div className="flex flex-wrap gap-1.5 mt-1">
+                {profile.signup_number && <span className="text-xs font-mono text-[var(--muted)]">User #{profile.signup_number}</span>}
+                {profile.signup_number && profile.signup_number <= 1000 && <span className="text-xs bg-yellow-900/20 text-yellow-400 border border-yellow-700/30 px-2 py-0.5 rounded-full">🏅 Founding Member</span>}
+                {profile.plan === "paid" && <span className="text-xs bg-teal-600/20 text-teal-400 border border-teal-600/30 px-2 py-0.5 rounded-full">⚡ Paid</span>}
+                {profile.plan === "founder" && <span className="text-xs bg-yellow-900/20 text-yellow-400 border border-yellow-700/30 px-2 py-0.5 rounded-full">👑 Founder plan</span>}
                 {profile.role === "admin" && <span className="text-xs bg-pink-600/20 text-pink-400 border border-pink-600/30 px-2 py-0.5 rounded-full">Admin</span>}
                 {profile.role === "ambassador" && <span className="text-xs bg-yellow-600/20 text-yellow-400 border border-yellow-600/30 px-2 py-0.5 rounded-full">Ambassador</span>}
                 {profile.is_minor && <span className="text-xs bg-blue-600/20 text-blue-400 border border-blue-600/30 px-2 py-0.5 rounded-full">Minor</span>}
@@ -152,6 +156,8 @@ export default async function AdminUserDetailPage({
           <Field label="Location" value={profile.city ? `${profile.city}, ${profile.state}` : "—"} />
           <Field label="Age" value={age !== null ? `${age} yrs${profile.dob ? ` (${profile.dob})` : ""}` : "—"} />
           <Field label="Role" value={profile.role ?? "user"} />
+          <Field label="Plan" value={profile.plan ?? "free"} />
+          <Field label="Signup #" value={profile.signup_number ? `#${profile.signup_number}${profile.signup_number <= 1000 ? " 🏅" : ""}` : "Not assigned yet"} />
           <Field label="Region" value={profile.region ?? "—"} />
           <Field label="Joined" value={new Date(profile.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} />
           <Field label="Onboarding" value={profile.onboarding_complete ? "Complete" : "Incomplete"} />
