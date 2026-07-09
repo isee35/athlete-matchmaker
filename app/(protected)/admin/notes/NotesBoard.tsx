@@ -24,7 +24,7 @@ interface Note {
   resolved_at?: string;
   created_at: string;
   author_id: string;
-  profiles?: { username: string; first_name: string; role?: string; super_admin?: boolean };
+  profiles?: { username: string; first_name: string; role?: string; super_admin?: boolean } | { username: string; first_name: string; role?: string; super_admin?: boolean }[];
 }
 
 interface CurrentUser {

@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
 import { Button } from "@/components/Button";
@@ -20,9 +20,15 @@ function minDate() {
 
 export default function NewLobby() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Pre-fill from match notification (?date=YYYY-MM-DD&sport=pickleball&match=1)
+  const matchDate  = searchParams.get("date") ?? "";
+  const matchSport = searchParams.get("sport") ?? "";
+  const fromMatch  = searchParams.get("match") === "1";
 
   // Core fields
   const [isCustom, setIsCustom]         = useState(false);
@@ -30,9 +36,9 @@ export default function NewLobby() {
   const [customDesc, setCustomDesc]     = useState("");
   const [parentSportId, setParentSportId] = useState("");
   const [title, setTitle]               = useState("");
-  const [sportId, setSportId]           = useState("");
+  const [sportId, setSportId]           = useState(matchSport);
   const [subdivisionId, setSubdivisionId] = useState("");
-  const [date, setDate]                 = useState("");
+  const [date, setDate]                 = useState(matchDate);
   const [startTime, setStartTime]       = useState("");
   const [endTime, setEndTime]           = useState("");
   const [locationName, setLocationName] = useState("");
@@ -103,6 +109,19 @@ export default function NewLobby() {
     // Auto-join as owner
     await supabase.from("lobby_members").insert({ lobby_id: data.id, user_id: user.id });
 
+    // If created from a match notification, ping the other matched users
+    if (fromMatch && matchDate && (sportId || parentSportId)) {
+      await fetch("/api/lobbies/notify-match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lobbyId: data.id,
+          date: matchDate,
+          sportId: sportId || parentSportId,
+        }),
+      });
+    }
+
     router.push(`/lobbies/${data.id}`);
   }
 
@@ -126,7 +145,12 @@ export default function NewLobby() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-xl px-4 py-3">{error}</p>}
+        {fromMatch && (
+        <div className="text-sm text-teal-300 bg-teal-900/20 border border-teal-800 rounded-xl px-4 py-3">
+          🎯 You were matched with a group available on this date. The date and sport are pre-filled — finish creating the lobby and they'll be notified instantly.
+        </div>
+      )}
+      {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-xl px-4 py-3">{error}</p>}
         {needsApproval && (
           <div className="text-sm text-yellow-400 bg-yellow-900/20 border border-yellow-800 rounded-xl px-4 py-3">
             ⚠️ Lobbies with more than 25 players require admin approval before going live.
