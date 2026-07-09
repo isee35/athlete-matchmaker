@@ -190,7 +190,7 @@ export default function PublicProfile() {
                 </div>
                 {!isOwnProfile && currentUserId && (
                   <div className="flex gap-2">
-                    <Button size="sm" variant={isFollowing ? "secondary" : "default"} loading={followLoading} onClick={toggleFollow}>
+                    <Button size="sm" variant={isFollowing ? "secondary" : "primary"} loading={followLoading} onClick={toggleFollow}>
                       {isFollowing ? "Following" : "Follow"}
                     </Button>
                     <button

@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
@@ -27,13 +27,6 @@ const US_STATES = [
   "VA","WA","WV","WI","WY","DC",
 ];
 
-const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
-interface AvailSlot {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-}
 
 export default function Onboarding() {
   const [step, setStep] = useState<Step>("profile");
@@ -63,7 +56,6 @@ export default function Onboarding() {
   // Parental consent (minors 16-17)
   const [parentName, setParentName]     = useState("");
   const [parentEmail, setParentEmail]   = useState("");
-  const [consentSubmitted, setConsentSubmitted] = useState(false);
 
   // Step 4 — Availability
   const [recurringBlocks, setRecurringBlocks] = useState<RecurringBlock[]>([]);
@@ -117,8 +109,6 @@ export default function Onboarding() {
     e.preventDefault();
     if (!parentName.trim() || !parentEmail.trim()) { setError("Parent name and email are required."); return; }
     setError("");
-    setConsentSubmitted(true);
-    // Proceed to sports selection — account will be flagged as pending consent after final submit
     setStep("sports");
   }
 
@@ -183,31 +173,11 @@ export default function Onboarding() {
     setSkillSelections((prev) => ({ ...prev, [sportId]: { ...prev[sportId], ...patch } }));
   }
 
-  function addAvailSlot() {
-    setAvailSlots((prev) => [...prev, { dayOfWeek: 0, startTime: "09:00", endTime: "12:00" }]);
-  }
-
-  function removeAvailSlot(i: number) {
-    setAvailSlots((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  function updateAvailSlot(i: number, patch: Partial<AvailSlot>) {
-    setAvailSlots((prev) => prev.map((s, idx) => idx === i ? { ...s, ...patch } : s));
-  }
-
   async function handleFinish() {
     setLoading(true);
     setError("");
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError("Not signed in."); setLoading(false); return; }
-
-    const age = (() => {
-      const birth = new Date(dob);
-      const now = new Date();
-      let a = now.getFullYear() - birth.getFullYear();
-      if (now.getMonth() - birth.getMonth() < 0 || (now.getMonth() === birth.getMonth() && now.getDate() < birth.getDate())) a--;
-      return a;
-    })();
 
     const age = getAge(dob);
     const isMinor = age < 18;

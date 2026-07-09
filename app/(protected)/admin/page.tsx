@@ -66,7 +66,7 @@ export default async function AdminDashboard() {
     supabase.from("no_show_reports").select("*", { count: "exact", head: true }).eq("reviewed", false),
     supabase.from("profiles").select("*", { count: "exact", head: true }).eq("parental_consent_pending", true),
     supabase.from("lobbies").select("*", { count: "exact", head: true }).eq("pending_approval", true),
-    supabase.from("admin_alerts").select("id, type, title, body, created_at, user_id").eq("resolved", false).order("created_at", { ascending: false }).limit(10),
+    supabase.from("admin_alerts").select("id, type, title, body, created_at, resolved, resolved_at, user_id, lobby_id").eq("resolved", false).order("created_at", { ascending: false }).limit(10),
     supabase.from("user_sports").select("sport_id"),
   ]);
 
