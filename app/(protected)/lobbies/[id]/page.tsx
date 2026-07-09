@@ -1,13 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-
-export const dynamic = "force-dynamic";
 import { getSportById } from "@/lib/sports";
 import { LobbyActions } from "./LobbyActions";
 import { LobbyChat } from "./LobbyChat";
 import { NoShowButton } from "./NoShowButton";
 import { Card } from "@/components/Card";
 import Link from "next/link";
+
+export const dynamic = "force-dynamic";
 
 export default async function LobbyDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

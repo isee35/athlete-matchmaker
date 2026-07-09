@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/Card";
+import { getSportById, SPORT_CATEGORIES } from "@/lib/sports";
 
 export const dynamic = "force-dynamic";
-import { getSportById, SPORT_CATEGORIES } from "@/lib/sports";
 
 export default async function Lobbies({ searchParams }: { searchParams: Promise<{ sport?: string; status?: string }> }) {
   const params = await searchParams;
