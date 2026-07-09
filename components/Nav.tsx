@@ -13,12 +13,14 @@ const userLinks = [
 ];
 
 const adminLinks = [
-  { href: "/admin",              label: "Overview",    icon: "🛡️" },
-  { href: "/admin/lobbies",      label: "Lobbies",     icon: "🎮" },
-  { href: "/admin/users",        label: "Users",       icon: "👥" },
-  { href: "/admin/reports",      label: "Reports",     icon: "⚠️" },
-  { href: "/admin/alerts",       label: "History",     icon: "✅" },
-  { href: "/admin/analytics",    label: "Analytics",   icon: "📊" },
+  { href: "/admin",                       label: "Overview",    icon: "🛡️" },
+  { href: "/admin/lobbies",               label: "Lobbies",     icon: "🎮" },
+  { href: "/admin/users",                 label: "Users",       icon: "👥" },
+  { href: "/admin/reports",               label: "Reports",     icon: "⚠️" },
+  { href: "/admin/alerts",                label: "History",     icon: "✅" },
+  { href: "/admin/analytics",             label: "Analytics",   icon: "📊" },
+  { href: "/admin/notes",                 label: "Notes",       icon: "📋" },
+  { href: "/admin/settings/permissions",  label: "Permissions", icon: "🔐" },
 ];
 
 export function Nav({ role }: { role?: string; isAdmin?: boolean }) {
