@@ -2,13 +2,18 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ApproveLobbyButton, CancelLobbyButton } from "./LobbyActions";
+import { CalendarView } from "@/components/CalendarView";
+import { SPORTS } from "@/lib/sports";
+
+const SPORT_EMOJIS: Record<string, string> = {};
+SPORTS.forEach((s) => { SPORT_EMOJIS[s.id] = s.emoji; });
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLobbiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; sport?: string; page?: string }>;
+  searchParams: Promise<{ filter?: string; sport?: string; page?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
   const supabase = await createClient();
@@ -25,6 +30,7 @@ export default async function AdminLobbiesPage({
   const isAdmin = profile.role === "admin";
   const region = profile.region;
   const filter = sp.filter ?? "all";
+  const tab = sp.tab ?? "table";
   const page = parseInt(sp.page ?? "1");
   const pageSize = 25;
 
@@ -53,6 +59,30 @@ export default async function AdminLobbiesPage({
     .select("*", { count: "exact", head: true })
     .eq("pending_approval", true);
 
+  // Calendar data for current month
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const monthStart = `${currentMonth}-01`;
+  const [calYear, calMon] = currentMonth.split("-").map(Number);
+  const monthEnd = new Date(calYear, calMon, 0).toISOString().split("T")[0];
+
+  let calQuery = supabase
+    .from("lobbies")
+    .select("id, title, sport_id, date, time, location, max_players, current_players, status, is_private, pending_approval")
+    .gte("date", monthStart)
+    .lte("date", monthEnd)
+    .eq("status", "open")
+    .eq("pending_approval", false)
+    .order("date")
+    .order("time");
+  if (!isAdmin && region) calQuery = calQuery.ilike("location", `%${region}%`);
+  const { data: calLobbies } = await calQuery;
+
+  const calByDate: Record<string, any[]> = {};
+  (calLobbies ?? []).forEach((l) => {
+    if (!calByDate[l.date]) calByDate[l.date] = [];
+    calByDate[l.date].push(l);
+  });
+
   return (
     <div className="p-6 space-y-6 max-w-5xl">
       <div className="flex items-start justify-between">
@@ -67,8 +97,34 @@ export default async function AdminLobbiesPage({
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
+      {/* Tab switcher */}
+      <div className="flex bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden w-fit">
+        {[{ key: "table", label: "☰ Table" }, { key: "calendar", label: "📅 Calendar" }].map(({ key, label }) => (
+          <Link
+            key={key}
+            href={`/admin/lobbies?tab=${key}`}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${tab === key ? "bg-pink-600/20 text-pink-300" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Calendar tab */}
+      {tab === "calendar" && (
+        <CalendarView
+          initialMonth={currentMonth}
+          initialData={calByDate}
+          userSportIds={[]}
+          sportEmojis={SPORT_EMOJIS}
+          sportColors={{}}
+          adminMode
+          adminRegion={!isAdmin ? region ?? undefined : undefined}
+        />
+      )}
+
+      {/* Filters (table tab only) */}
+      {tab === "table" && <div className="flex flex-wrap gap-2">
         {[
           { key: "all", label: "All" },
           { key: "pending", label: "⏳ Pending Approval" },
@@ -87,10 +143,10 @@ export default async function AdminLobbiesPage({
             {label}
           </Link>
         ))}
-      </div>
+      </div>}
 
       {/* Table */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
+      {tab === "table" && <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden">
         {(!lobbies || lobbies.length === 0) ? (
           <div className="p-8 text-center text-[var(--muted)]">No lobbies found.</div>
         ) : (
@@ -157,10 +213,10 @@ export default async function AdminLobbiesPage({
             </table>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-sm text-[var(--muted)]">
+      {tab === "table" && <div className="flex items-center justify-between text-sm text-[var(--muted)]">
         <span>Page {page}</span>
         <div className="flex gap-2">
           {page > 1 && (
@@ -176,7 +232,7 @@ export default async function AdminLobbiesPage({
             </Link>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
