@@ -4,6 +4,7 @@ import { getSportById } from "@/lib/sports";
 import { LobbyActions } from "./LobbyActions";
 import { LobbyChat } from "./LobbyChat";
 import { NoShowButton } from "./NoShowButton";
+import { InvitePanel } from "./InvitePanel";
 import { Card } from "@/components/Card";
 import Link from "next/link";
 
@@ -33,14 +34,23 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
     .eq("id", lobby.owner_id)
     .single();
 
-  const [membersRes] = await Promise.all([
+  const [membersRes, inviteRes] = await Promise.all([
     supabase
       .from("lobby_members")
       .select("user_id, status, waitlist_position, joined_at, profiles(username, first_name, last_name, city)")
       .eq("lobby_id", id)
       .order("joined_at"),
+    user
+      ? supabase
+          .from("lobby_invites")
+          .select("id, status")
+          .eq("lobby_id", id)
+          .eq("invitee_id", user.id)
+          .single()
+      : Promise.resolve({ data: null }),
   ]);
   const members = membersRes.data;
+  const myInvite = inviteRes.data;
 
   const sport = getSportById(lobby.sport_id);
   const joined = members?.filter((m: any) => m.status === "joined") ?? [];
@@ -131,12 +141,17 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
       <LobbyActions
         lobby={lobby}
         myMembership={myMembership}
+        myInvite={myInvite}
         isOwner={isOwner}
         isFull={isFull}
         joinedCount={joined.length}
         waitlistCount={waitlisted.length}
         userId={user?.id ?? ""}
       />
+
+      {isOwner && lobby.status !== "cancelled" && lobby.status !== "completed" && (
+        <InvitePanel lobbyId={id} />
+      )}
 
       {/* Members */}
       <div className="space-y-2">

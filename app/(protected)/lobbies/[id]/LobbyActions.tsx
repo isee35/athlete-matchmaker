@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 interface Props {
   lobby: any;
   myMembership: any;
+  myInvite: any;
   isOwner: boolean;
   isFull: boolean;
   joinedCount: number;
@@ -14,7 +15,7 @@ interface Props {
   userId: string;
 }
 
-export function LobbyActions({ lobby, myMembership, isOwner, isFull, joinedCount, waitlistCount, userId }: Props) {
+export function LobbyActions({ lobby, myMembership, myInvite, isOwner, isFull, joinedCount, waitlistCount, userId }: Props) {
   const [loading, setLoading] = useState(false);
   const [contactOptIn, setContactOptIn] = useState(false);
   const router = useRouter();
@@ -85,8 +86,37 @@ export function LobbyActions({ lobby, myMembership, isOwner, isFull, joinedCount
 
   const canWaitlist = isFull && waitlistCount < (lobby.waitlist_max ?? 2);
 
+  async function acceptInvite(inviteId: string) {
+    setLoading(true);
+    await supabase.from("lobby_invites").update({ status: "accepted" }).eq("id", inviteId);
+    await supabase.from("lobby_members").insert({ lobby_id: lobby.id, user_id: userId, status: "joined" });
+    router.refresh();
+    setLoading(false);
+  }
+
+  async function declineInvite(inviteId: string) {
+    setLoading(true);
+    await supabase.from("lobby_invites").update({ status: "declined" }).eq("id", inviteId);
+    router.refresh();
+    setLoading(false);
+  }
+
   return (
     <div className="space-y-3">
+      {myInvite?.status === "pending" && !myMembership && (
+        <div className="bg-teal-900/20 border border-teal-600/40 rounded-xl px-4 py-4 space-y-3">
+          <p className="text-sm font-medium text-teal-300">🎮 You&apos;ve been invited to join this lobby!</p>
+          <div className="flex gap-2">
+            <Button onClick={() => acceptInvite(myInvite.id)} loading={loading} variant="squad" size="md" className="flex-1">
+              Accept
+            </Button>
+            <Button onClick={() => declineInvite(myInvite.id)} loading={loading} variant="ghost" size="md">
+              Decline
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!myMembership && (
         <>
           {canWaitlist && (
