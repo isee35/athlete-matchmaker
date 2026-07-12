@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 
 const userLinks = [
   { href: "/dashboard",     label: "Dashboard",   icon: "⚡" },
@@ -25,10 +26,36 @@ const adminLinks = [
   { href: "/admin/settings/permissions",  label: "Permissions", icon: "🔐" },
 ];
 
-export function Nav({ role }: { role?: string; isAdmin?: boolean }) {
+export function Nav({ role, userId, initialUnread = 0 }: { role?: string; isAdmin?: boolean; userId?: string; initialUnread?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [unread, setUnread] = useState(initialUnread);
+
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`notif-${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        () => setUnread((n) => n + 1)
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        async () => {
+          const { count } = await supabase
+            .from("notifications")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .eq("read", false);
+          setUnread(count ?? 0);
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
 
   const isAdminOrAmbassador = role === "admin" || role === "ambassador";
   const isInAdminZone = pathname.startsWith("/admin");
@@ -78,7 +105,12 @@ export function Nav({ role }: { role?: string; isAdmin?: boolean }) {
             }`}
           >
             <span>{l.icon}</span>
-            {l.label}
+            <span className="flex-1">{l.label}</span>
+            {l.href === "/notifications" && unread > 0 && (
+              <span className="bg-pink-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
           </Link>
         ))}
 
@@ -108,11 +140,18 @@ export function Nav({ role }: { role?: string; isAdmin?: boolean }) {
           <Link
             key={l.href}
             href={l.href}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors ${
+            className={`relative flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors ${
               pathname.startsWith(l.href) ? "text-teal-400" : "text-[var(--muted)]"
             }`}
           >
-            <span className="text-lg">{l.icon}</span>
+            <span className="text-lg relative">
+              {l.icon}
+              {l.href === "/notifications" && unread > 0 && (
+                <span className="absolute -top-1 -right-1 bg-pink-600 text-white text-[8px] font-bold px-1 py-px rounded-full min-w-[14px] text-center leading-tight">
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </span>
             {l.label}
           </Link>
         ))}
