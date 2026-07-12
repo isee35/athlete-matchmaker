@@ -9,6 +9,7 @@ export function CreateGroupForm() {
   const [name, setName] = useState("");
   const [sportId, setSportId] = useState("");
   const [description, setDescription] = useState("");
+  const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -27,7 +28,7 @@ export function CreateGroupForm() {
 
     const { data: group, error: groupErr } = await supabase
       .from("groups")
-      .insert({ name: name.trim(), sport_id: sportId, owner_id: user.id, description: description.trim() || null })
+      .insert({ name: name.trim(), sport_id: sportId, owner_id: user.id, description: description.trim() || null, is_public: isPublic })
       .select("id")
       .single();
 
@@ -77,6 +78,23 @@ export function CreateGroupForm() {
           rows={3}
           className="w-full bg-[var(--surface-2)] border border-[var(--border)] text-[var(--foreground)] placeholder-[var(--muted)] rounded-xl px-4 py-2.5 text-sm focus:border-teal-500 focus:outline-none transition-colors resize-none"
         />
+      </div>
+
+      {/* Public / Private toggle */}
+      <div className="flex items-center justify-between bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-4 py-3">
+        <div>
+          <p className="text-sm font-medium">{isPublic ? "🌐 Public group" : "🔒 Private group"}</p>
+          <p className="text-xs text-[var(--muted)] mt-0.5">
+            {isPublic ? "Anyone can discover and request to join" : "Only people you invite can see this group"}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsPublic((v) => !v)}
+          className={`relative w-11 h-6 rounded-full transition-colors ${isPublic ? "bg-teal-600" : "bg-[var(--border)]"}`}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isPublic ? "translate-x-5" : "translate-x-0"}`} />
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

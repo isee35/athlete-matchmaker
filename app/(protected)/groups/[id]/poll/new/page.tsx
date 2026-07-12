@@ -18,7 +18,16 @@ export default async function NewPollPage({ params }: { params: Promise<{ id: st
     .single();
 
   if (!group) notFound();
-  if (group.owner_id !== user?.id) redirect(`/groups/${id}`);
+  // Only owner or captain can create polls
+  const { data: myMembership } = await supabase
+    .from("group_members")
+    .select("role")
+    .eq("group_id", id)
+    .eq("user_id", user!.id)
+    .single();
+
+  const canPoll = group.owner_id === user?.id || myMembership?.role === "captain";
+  if (!canPoll) redirect(`/groups/${id}`);
 
   return (
     <div className="p-6 max-w-lg">

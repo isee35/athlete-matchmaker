@@ -34,7 +34,7 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
     .eq("id", lobby.owner_id)
     .single();
 
-  const [membersRes, inviteRes] = await Promise.all([
+  const [membersRes, inviteRes, followingRes] = await Promise.all([
     supabase
       .from("lobby_members")
       .select("user_id, status, waitlist_position, joined_at, profiles(username, first_name, last_name, city)")
@@ -48,9 +48,20 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
           .eq("invitee_id", user.id)
           .single()
       : Promise.resolve({ data: null }),
+    user
+      ? supabase
+          .from("followers")
+          .select("following_id, profiles!following_id(username, first_name)")
+          .eq("follower_id", user.id)
+      : Promise.resolve({ data: [] }),
   ]);
   const members = membersRes.data;
   const myInvite = inviteRes.data;
+  const friends = (followingRes.data ?? []).map((r: any) => ({
+    id: r.following_id,
+    username: r.profiles?.username,
+    first_name: r.profiles?.first_name,
+  }));
 
   const sport = getSportById(lobby.sport_id);
   const joined = members?.filter((m: any) => m.status === "joined") ?? [];
@@ -150,7 +161,7 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
       />
 
       {isOwner && lobby.status !== "cancelled" && lobby.status !== "completed" && (
-        <InvitePanel lobbyId={id} />
+        <InvitePanel lobbyId={id} friends={friends} memberUserIds={(members ?? []).map((m: any) => m.user_id)} />
       )}
 
       {/* Members */}
