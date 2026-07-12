@@ -25,22 +25,25 @@ export default function NewLobby() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Pre-fill from match notification (?date=YYYY-MM-DD&sport=pickleball&match=1)
+  // Pre-fill from match notification or poll heatmap
   const matchDate  = searchParams.get("date") ?? "";
   const matchSport = searchParams.get("sport") ?? "";
   const fromMatch  = searchParams.get("match") === "1";
+  const pollStart  = searchParams.get("start") ?? "";
+  const pollEnd    = searchParams.get("end") ?? "";
+  const pollTitle  = searchParams.get("title") ?? "";
 
   // Core fields
   const [isCustom, setIsCustom]         = useState(false);
   const [customTitle, setCustomTitle]   = useState("");
   const [customDesc, setCustomDesc]     = useState("");
   const [parentSportId, setParentSportId] = useState("");
-  const [title, setTitle]               = useState("");
+  const [title, setTitle]               = useState(pollTitle);
   const [sportId, setSportId]           = useState(matchSport);
   const [subdivisionId, setSubdivisionId] = useState("");
   const [date, setDate]                 = useState(matchDate);
-  const [startTime, setStartTime]       = useState("");
-  const [endTime, setEndTime]           = useState("");
+  const [startTime, setStartTime]       = useState(pollStart);
+  const [endTime, setEndTime]           = useState(pollEnd);
   const [locationName, setLocationName] = useState("");
   const [locationUrl, setLocationUrl]   = useState("");
   const [softCap, setSoftCap]           = useState("4");
