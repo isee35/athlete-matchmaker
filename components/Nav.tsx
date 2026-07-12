@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 const userLinks = [
   { href: "/dashboard",     label: "Dashboard",   icon: "⚡" },
   { href: "/lobbies",       label: "Lobbies",      icon: "🎮" },
+  { href: "/groups",        label: "Groups",       icon: "👥" },
   { href: "/availability",  label: "Availability", icon: "📅" },
   { href: "/players",       label: "Players",      icon: "🏅" },
   { href: "/notifications", label: "Alerts",       icon: "🔔" },
