@@ -5,6 +5,7 @@ import { Card } from "@/components/Card";
 import Link from "next/link";
 import { GroupInvitePanel } from "./GroupInvitePanel";
 import { GroupMemberActions } from "./GroupMemberActions";
+import { CopyInviteLink } from "./CopyInviteLink";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,7 @@ export default async function GroupDetail({ params }: { params: Promise<{ id: st
             📅 Poll Availability
           </Link>
         )}
+        {(isOwner || isCaptain) && <CopyInviteLink groupId={id} />}
       </div>
 
       {/* Members list */}

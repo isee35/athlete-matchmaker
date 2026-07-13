@@ -11,10 +11,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
 
-  // Verify caller is the group owner
   const { data: group } = await supabase
     .from("groups")
-    .select("id, name, owner_id, sport_id")
+    .select("id, name, owner_id")
     .eq("id", group_id)
     .single();
 
@@ -22,7 +21,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not the group owner" }, { status: 403 });
   }
 
-  // Look up invitee
   const { data: invitee } = await supabase
     .from("profiles")
     .select("id, username, first_name")
@@ -32,24 +30,33 @@ export async function POST(req: Request) {
   if (!invitee) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (invitee.id === user.id) return NextResponse.json({ error: "Cannot invite yourself" }, { status: 400 });
 
-  // Check not already a member
-  const { data: existing } = await supabase
+  const { data: existingMember } = await supabase
     .from("group_members")
     .select("id")
     .eq("group_id", group_id)
     .eq("user_id", invitee.id)
-    .single();
+    .maybeSingle();
 
-  if (existing) return NextResponse.json({ error: "Already in this group" }, { status: 400 });
+  if (existingMember) return NextResponse.json({ error: "Already in this group" }, { status: 400 });
 
-  // Add directly as member
-  const { error: memberErr } = await supabase
-    .from("group_members")
-    .insert({ group_id, user_id: invitee.id, role: "member" });
+  const { data: existingInvite } = await supabase
+    .from("group_invites")
+    .select("id, status")
+    .eq("group_id", group_id)
+    .eq("invitee_id", invitee.id)
+    .maybeSingle();
 
-  if (memberErr) return NextResponse.json({ error: memberErr.message }, { status: 500 });
+  if (existingInvite?.status === "pending") {
+    return NextResponse.json({ error: "Invite already sent" }, { status: 400 });
+  }
 
-  // Get inviter name for notification
+  // Upsert invite (re-invite after decline is allowed)
+  const { error: inviteErr } = await supabase
+    .from("group_invites")
+    .upsert({ group_id, inviter_id: user.id, invitee_id: invitee.id, status: "pending" }, { onConflict: "group_id,invitee_id" });
+
+  if (inviteErr) return NextResponse.json({ error: inviteErr.message }, { status: 500 });
+
   const { data: inviterProfile } = await supabase
     .from("profiles")
     .select("username, first_name")
@@ -60,10 +67,11 @@ export async function POST(req: Request) {
 
   await supabase.from("notifications").insert({
     user_id: invitee.id,
-    type: "lobby_invite",
-    title: `${inviterName} added you to a group`,
-    body: `You've been added to "${group.name}". Tap to view.`,
-    action_url: `/groups/${group_id}`,
+    type: "group_invite",
+    title: `${inviterName} invited you to a group`,
+    body: `You've been invited to join "${group.name}". Accept or decline in your notifications.`,
+    action_url: `/notifications`,
+    metadata: JSON.stringify({ group_invite_id: (await supabase.from("group_invites").select("id").eq("group_id", group_id).eq("invitee_id", invitee.id).single()).data?.id }),
     read: false,
   });
 

@@ -12,28 +12,19 @@ export async function POST(req: Request) {
   let finalGroupId = group_id;
 
   if (!group_id) {
-    // Create a new group with both users
     if (!new_group_name?.trim()) return NextResponse.json({ error: "Group name required" }, { status: 400 });
 
     const { data: newGroup, error: groupErr } = await supabase
       .from("groups")
-      .insert({
-        name: new_group_name.trim(),
-        sport_id: sport_id || null,
-        owner_id: user.id,
-        is_public: false,
-      })
+      .insert({ name: new_group_name.trim(), sport_id: sport_id || null, owner_id: user.id, is_public: false })
       .select("id")
       .single();
 
     if (groupErr || !newGroup) return NextResponse.json({ error: groupErr?.message ?? "Failed to create group" }, { status: 500 });
 
     finalGroupId = newGroup.id;
-
-    // Add creator as owner
     await supabase.from("group_members").insert({ group_id: finalGroupId, user_id: user.id, role: "owner" });
   } else {
-    // Verify caller is owner or captain of existing group
     const { data: membership } = await supabase
       .from("group_members")
       .select("role")
@@ -45,45 +36,50 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not authorized to invite to this group" }, { status: 403 });
     }
 
-    // Check already a member
-    const { data: existing } = await supabase
+    const { data: existingMember } = await supabase
       .from("group_members")
       .select("id")
       .eq("group_id", group_id)
       .eq("user_id", target_user_id)
-      .single();
+      .maybeSingle();
 
-    if (existing) return NextResponse.json({ error: "Already in this group" }, { status: 400 });
+    if (existingMember) return NextResponse.json({ error: "Already in this group" }, { status: 400 });
   }
 
-  // Add target user as member
-  const { error: memberErr } = await supabase
-    .from("group_members")
-    .insert({ group_id: finalGroupId, user_id: target_user_id, role: "member" });
+  // Check for existing pending invite
+  const { data: existingInvite } = await supabase
+    .from("group_invites")
+    .select("id, status")
+    .eq("group_id", finalGroupId)
+    .eq("invitee_id", target_user_id)
+    .maybeSingle();
 
-  if (memberErr) return NextResponse.json({ error: memberErr.message }, { status: 500 });
+  if (existingInvite?.status === "pending") {
+    return NextResponse.json({ error: "Invite already sent" }, { status: 400 });
+  }
 
-  // Notify the invited user
-  const { data: inviterProfile } = await supabase
-    .from("profiles")
-    .select("username, first_name")
-    .eq("id", user.id)
-    .single();
+  const { error: inviteErr } = await supabase
+    .from("group_invites")
+    .upsert({ group_id: finalGroupId, inviter_id: user.id, invitee_id: target_user_id, status: "pending" }, { onConflict: "group_id,invitee_id" });
 
-  const { data: group } = await supabase
-    .from("groups")
-    .select("name")
-    .eq("id", finalGroupId)
-    .single();
+  if (inviteErr) return NextResponse.json({ error: inviteErr.message }, { status: 500 });
 
-  const inviterName = inviterProfile?.first_name ?? `@${inviterProfile?.username}`;
+  const [inviterRes, groupRes, inviteRes] = await Promise.all([
+    supabase.from("profiles").select("username, first_name").eq("id", user.id).single(),
+    supabase.from("groups").select("name").eq("id", finalGroupId).single(),
+    supabase.from("group_invites").select("id").eq("group_id", finalGroupId).eq("invitee_id", target_user_id).single(),
+  ]);
+
+  const inviterName = inviterRes.data?.first_name || (inviterRes.data?.username ? `@${inviterRes.data.username}` : "Someone");
+  const groupName = groupRes.data?.name ?? "a group";
 
   await supabase.from("notifications").insert({
     user_id: target_user_id,
     type: "group_invite",
-    title: `${inviterName} added you to a group`,
-    body: `You've been added to "${group?.name}".`,
-    action_url: `/groups/${finalGroupId}`,
+    title: `${inviterName} invited you to join a group`,
+    body: `You've been invited to join "${groupName}". Accept or decline in your notifications.`,
+    action_url: `/notifications`,
+    metadata: JSON.stringify({ group_invite_id: inviteRes.data?.id }),
     read: false,
   });
 
