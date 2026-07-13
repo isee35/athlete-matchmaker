@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS } from "@/lib/sports";
 import { BADGE_EMOJI, BADGE_LABELS } from "@/lib/hostingLimits";
+import { GroupInvitePanel } from "./GroupInvitePanel";
 import { Button } from "@/components/Button";
 import { Nav } from "@/components/Nav";
 
@@ -197,17 +198,19 @@ export default function PublicProfile() {
                   )}
                 </div>
                 {!isOwnProfile && currentUserId && (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant={isFollowing ? "secondary" : "primary"} loading={followLoading} onClick={toggleFollow}>
-                      {isFollowing ? "Following" : "Follow"}
-                    </Button>
-                    <button
-                      onClick={toggleHighFive}
-                      disabled={hfLoading}
-                      className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all cursor-pointer ${hasHighFived ? "bg-pink-600/20 border-pink-500 text-pink-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)] hover:border-pink-500"}`}
-                    >
-                      🙌 {profile.high_five_count}
-                    </button>
+                  <div className="flex flex-col gap-2 items-end">
+                    <div className="flex gap-2">
+                      <Button size="sm" variant={isFollowing ? "secondary" : "primary"} loading={followLoading} onClick={toggleFollow}>
+                        {isFollowing ? "Following" : "Follow"}
+                      </Button>
+                      <button
+                        onClick={toggleHighFive}
+                        disabled={hfLoading}
+                        className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all cursor-pointer ${hasHighFived ? "bg-pink-600/20 border-pink-500 text-pink-300" : "bg-[var(--surface-2)] border-[var(--border)] text-[var(--muted-light)] hover:border-pink-500"}`}
+                      >
+                        🙌 {profile.high_five_count}
+                      </button>
+                    </div>
                   </div>
                 )}
                 {isOwnProfile && (
@@ -243,6 +246,11 @@ export default function PublicProfile() {
             </div>
           </div>
         </div>
+
+        {/* Group invite — only for other logged-in users */}
+        {!isOwnProfile && currentUserId && (
+          <GroupInvitePanel targetUserId={profile.id} targetUsername={profile.username} />
+        )}
 
         {/* Badges */}
         {badges.length > 0 && (
