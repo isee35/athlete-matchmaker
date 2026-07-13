@@ -32,6 +32,8 @@ export default async function Dashboard() {
     { data: notifications },
     { data: userSports },
     { data: joinedLobbies },
+    { data: ownedGroups },
+    { data: membershipRows },
   ] = await Promise.all([
     supabase.from("profiles").select("username, first_name, no_show_count, lobby_count").eq("id", user!.id).single(),
     supabase.from("notifications").select("id").eq("user_id", user!.id).eq("read", false),
@@ -42,7 +44,19 @@ export default async function Dashboard() {
       .eq("status", "joined")
       .gte("lobbies.date", today)
       .limit(5),
+    supabase.from("groups").select("id, name, sport_id").eq("owner_id", user!.id).order("created_at", { ascending: false }).limit(10),
+    supabase.from("group_members").select("group_id, groups(id, name, sport_id, owner_id)").eq("user_id", user!.id).neq("role", "owner"),
   ]);
+
+  const memberGroups = (membershipRows ?? [])
+    .map((r: any) => r.groups)
+    .filter(Boolean)
+    .filter((g: any) => g.owner_id !== user!.id);
+
+  const myGroups = [
+    ...(ownedGroups ?? []).map((g: any) => ({ ...g, isOwner: true })),
+    ...memberGroups.map((g: any) => ({ ...g, isOwner: false })),
+  ].slice(0, 6);
 
   const name = profile?.first_name ?? profile?.username ?? "Athlete";
   const unread = notifications?.length ?? 0;
@@ -132,6 +146,41 @@ export default async function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Your Groups */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">Your Groups</h2>
+          <Link href="/groups" className="text-xs text-teal-400 hover:text-teal-300">View all →</Link>
+        </div>
+        {myGroups.length > 0 ? (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {myGroups.map((group: any) => {
+              const sport = getSportById(group.sport_id);
+              return (
+                <Link key={group.id} href={`/groups/${group.id}`} className="shrink-0">
+                  <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-teal-600/50 transition-colors min-w-[140px]">
+                    <div className="text-xl">{sport?.emoji ?? "👥"}</div>
+                    <p className="text-sm font-medium mt-1 truncate max-w-[120px]">{group.name}</p>
+                    <p className="text-xs text-[var(--muted)] mt-0.5">{group.isOwner ? "Owner" : "Member"}</p>
+                  </div>
+                </Link>
+              );
+            })}
+            <Link href="/groups/new" className="shrink-0">
+              <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-xl px-4 py-3 hover:border-teal-600/50 transition-colors min-w-[120px] flex flex-col items-center justify-center gap-1 h-full">
+                <span className="text-xl">+</span>
+                <p className="text-xs text-[var(--muted)]">New Group</p>
+              </div>
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-[var(--surface)] border border-dashed border-[var(--border)] rounded-xl px-4 py-4 flex items-center justify-between">
+            <p className="text-sm text-[var(--muted)]">No groups yet — create one to schedule with friends.</p>
+            <Link href="/groups/new" className="text-xs text-teal-400 hover:text-teal-300 shrink-0 ml-3">Create →</Link>
+          </div>
+        )}
+      </div>
 
       {/* Main calendar */}
       <div>
