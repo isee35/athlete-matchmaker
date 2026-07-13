@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
+import { HostingLimitModal } from "./HostingLimitModal";
+import type { HostBadge } from "@/lib/hostingLimits";
 
 const MAX_DATE_DAYS = 60;
 
@@ -24,6 +26,9 @@ export default function NewLobby() {
   const supabase = createClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [limitData, setLimitData] = useState<{ badge: HostBadge; limit: number; openCount: number; purchasedSlots: number } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
+  const [paying, setPaying] = useState(false);
 
   // Pre-fill from match notification or poll heatmap
   const matchDate  = searchParams.get("date") ?? "";
@@ -65,21 +70,9 @@ export default function NewLobby() {
   const hardCapNum = hardCap ? parseInt(hardCap) : null;
   const needsApproval = hardCapNum !== null && hardCapNum > 25;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!isCustom && !sportId) { setError("Select a sport."); return; }
-    if (isCustom && !parentSportId) { setError("Select a parent sport category for your custom lobby."); return; }
-
-    setLoading(true);
-    setError("");
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError("Not signed in."); setLoading(false); return; }
-
+  function buildPayload(usePurchasedSlot = false) {
     const lobbyTitle = isCustom ? customTitle : title;
-
-    const { data, error: lobbyError } = await supabase.from("lobbies").insert({
-      owner_id: user.id,
+    return {
       title: lobbyTitle,
       sport_id: isCustom ? parentSportId : sportId,
       subdivision_id: isCustom ? null : (subdivisionId || null),
@@ -105,41 +98,85 @@ export default function NewLobby() {
       estimated_cost: hasCost && estimatedCost ? parseFloat(estimatedCost) : null,
       cost_description: hasCost ? costDescription || null : null,
       pending_approval: needsApproval,
-    }).select("id").single();
+      use_purchased_slot: usePurchasedSlot,
+    };
+  }
 
-    if (lobbyError) {
-      setError(`Could not create lobby: ${lobbyError.message || lobbyError.code || JSON.stringify(lobbyError)}`);
-      setLoading(false);
-      return;
+  async function submitLobby(payload: Record<string, unknown>) {
+    const res = await fetch("/api/lobbies/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (res.status === 402 && data.error === "HOSTING_LIMIT") {
+      setLimitData({ badge: data.badge, limit: data.limit, openCount: data.openCount, purchasedSlots: data.purchased_slots });
+      setPendingPayload(payload);
+      return null;
     }
 
-    if (!data?.id) {
-      setError("Lobby was not created — no ID returned. Please try again.");
-      setLoading(false);
-      return;
+    if (!res.ok) {
+      setError(data.error ?? "Could not create lobby.");
+      return null;
     }
 
-    // Auto-join as owner
-    await supabase.from("lobby_members").insert({ lobby_id: data.id, user_id: user.id });
+    return data.id as string;
+  }
 
-    // If created from a match notification, ping the other matched users
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!isCustom && !sportId) { setError("Select a sport."); return; }
+    if (isCustom && !parentSportId) { setError("Select a parent sport category for your custom lobby."); return; }
+
+    setLoading(true);
+    setError("");
+
+    const lobbyId = await submitLobby(buildPayload());
+    setLoading(false);
+    if (!lobbyId) return;
+
     if (fromMatch && matchDate && (sportId || parentSportId)) {
       await fetch("/api/lobbies/notify-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lobbyId: data.id,
-          date: matchDate,
-          sportId: sportId || parentSportId,
-        }),
+        body: JSON.stringify({ lobbyId, date: matchDate, sportId: sportId || parentSportId }),
       });
     }
 
-    // Hard navigation bypasses Next.js router cache (which was serving stale 404s)
-    window.location.href = `/lobbies/${data.id}`;
+    window.location.href = `/lobbies/${lobbyId}`;
+  }
+
+  async function handlePaySlot() {
+    if (!pendingPayload) return;
+    setPaying(true);
+    // If they have pre-purchased slots, use one immediately
+    // Otherwise this is the Stripe stub — show "coming soon" and bail
+    if ((limitData?.purchasedSlots ?? 0) === 0) {
+      setPaying(false);
+      return; // Stripe flow goes here when implemented
+    }
+    const lobbyId = await submitLobby({ ...pendingPayload, use_purchased_slot: true });
+    setPaying(false);
+    if (!lobbyId) return;
+    setLimitData(null);
+    setPendingPayload(null);
+    window.location.href = `/lobbies/${lobbyId}`;
   }
 
   return (
+    <>
+    {limitData && (
+      <HostingLimitModal
+        badge={limitData.badge}
+        limit={limitData.limit}
+        openCount={limitData.openCount}
+        purchasedSlots={limitData.purchasedSlots}
+        onPaySlot={handlePaySlot}
+        onClose={() => { setLimitData(null); setPendingPayload(null); }}
+        paying={paying}
+      />
+    )}
     <div className="p-6 max-w-lg space-y-6">
       <div>
         <h1 className="text-2xl font-black">Create a Lobby</h1>
@@ -329,5 +366,6 @@ export default function NewLobby() {
         </Button>
       </form>
     </div>
+    </>
   );
 }

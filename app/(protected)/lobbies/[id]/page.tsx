@@ -7,6 +7,7 @@ import { NoShowButton } from "./NoShowButton";
 import { InvitePanel } from "./InvitePanel";
 import { Card } from "@/components/Card";
 import Link from "next/link";
+import { BADGE_EMOJI } from "@/lib/hostingLimits";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +35,10 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
     .eq("id", lobby.owner_id)
     .single();
 
-  const [membersRes, inviteRes, followingRes] = await Promise.all([
+  const [membersRes, inviteRes, followingRes, groupsRes] = await Promise.all([
     supabase
       .from("lobby_members")
-      .select("user_id, status, waitlist_position, joined_at, profiles(username, first_name, last_name, city)")
+      .select("user_id, status, waitlist_position, joined_at, profiles(username, first_name, last_name, city, badge)")
       .eq("lobby_id", id)
       .order("joined_at"),
     user
@@ -54,6 +55,13 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
           .select("following_id, profiles!following_id(username, first_name)")
           .eq("follower_id", user.id)
       : Promise.resolve({ data: [] }),
+    user
+      ? supabase
+          .from("group_members")
+          .select("group_id, groups(id, name, sport_id)")
+          .eq("user_id", user.id)
+          .limit(50)
+      : Promise.resolve({ data: [] }),
   ]);
   const members = membersRes.data;
   const myInvite = inviteRes.data;
@@ -62,6 +70,46 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
     username: r.profiles?.username,
     first_name: r.profiles?.first_name,
   }));
+
+  // Build groups the user belongs to, then fetch their members
+  type GroupEntry = { id: string; name: string; sport_id: string; members: { id: string; username: string; first_name?: string }[] };
+  const groupsMap: Record<string, GroupEntry> = {};
+  for (const row of (groupsRes.data ?? []) as any[]) {
+    if (!row.groups) continue;
+    const g = row.groups;
+    if (!groupsMap[g.id]) groupsMap[g.id] = { id: g.id, name: g.name, sport_id: g.sport_id, members: [] };
+  }
+  const groupIds = Object.keys(groupsMap);
+  if (groupIds.length > 0 && user) {
+    const { data: gmRows } = await supabase
+      .from("group_members")
+      .select("group_id, user_id, profiles(id, username, first_name)")
+      .in("group_id", groupIds)
+      .neq("user_id", user.id);
+    for (const row of (gmRows ?? []) as any[]) {
+      if (row.profiles && groupsMap[row.group_id]) {
+        groupsMap[row.group_id].members.push({
+          id: row.profiles.id,
+          username: row.profiles.username,
+          first_name: row.profiles.first_name,
+        });
+      }
+    }
+  }
+  const myGroups = Object.values(groupsMap);
+
+  // Find which users have the lobby's start time marked available in any poll
+  const startSlot = lobby.start_time?.slice(0, 5);
+  let availableUserIds: string[] = [];
+  if (startSlot && lobby.date) {
+    const { data: pollRows } = await supabase
+      .from("poll_responses")
+      .select("user_id, available_slots")
+      .eq("response_date", lobby.date);
+    availableUserIds = (pollRows ?? [])
+      .filter((r: any) => r.available_slots?.includes(startSlot))
+      .map((r: any) => r.user_id);
+  }
 
   const sport = getSportById(lobby.sport_id);
   const joined = members?.filter((m: any) => m.status === "joined") ?? [];
@@ -161,7 +209,7 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
       />
 
       {isOwner && lobby.status !== "cancelled" && lobby.status !== "completed" && (
-        <InvitePanel lobbyId={id} friends={friends} memberUserIds={(members ?? []).map((m: any) => m.user_id)} />
+        <InvitePanel lobbyId={id} friends={friends} memberUserIds={(members ?? []).map((m: any) => m.user_id)} myGroups={myGroups} availableUserIds={availableUserIds} />
       )}
 
       {/* Members */}
@@ -175,7 +223,10 @@ export default async function LobbyDetail({ params }: { params: Promise<{ id: st
                   {m.profiles?.username?.[0]?.toUpperCase()}
                 </div>
                 <div>
-                  <p className="text-sm font-medium">@{m.profiles?.username}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium">@{m.profiles?.username}</p>
+                    {m.profiles?.badge && <span title={m.profiles.badge}>{BADGE_EMOJI[m.profiles.badge]}</span>}
+                  </div>
                   {m.profiles?.city && <p className="text-xs text-[var(--muted)]">{m.profiles.city}</p>}
                 </div>
               </div>
