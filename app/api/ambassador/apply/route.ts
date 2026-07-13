@@ -12,7 +12,7 @@ export async function POST() {
     .eq("id", user.id)
     .single();
 
-  const name = profile?.first_name ?? `@${profile?.username}` ?? "Someone";
+  const name = profile?.first_name || (profile?.username ? `@${profile.username}` : "Someone");
   const badge = profile?.badge ?? "none";
 
   // Notify all admins/super_admins
