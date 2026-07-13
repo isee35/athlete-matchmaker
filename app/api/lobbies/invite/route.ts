@@ -110,7 +110,7 @@ export async function POST(req: Request) {
     .eq("id", user.id)
     .single();
 
-  const inviterName = inviterProfile?.first_name ?? `@${inviterProfile?.username}` ?? "Someone";
+  const inviterName = inviterProfile?.first_name || (inviterProfile?.username ? `@${inviterProfile.username}` : "Someone");
 
   // Create notification for invitee
   await supabase.from("notifications").insert({

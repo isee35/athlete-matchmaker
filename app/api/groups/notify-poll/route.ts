@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     .eq("id", user.id)
     .single();
 
-  const creatorName = creatorProfile?.first_name ?? `@${creatorProfile?.username}` ?? "Someone";
+  const creatorName = creatorProfile?.first_name || (creatorProfile?.username ? `@${creatorProfile.username}` : "Someone");
   const groupName = (poll.groups as any).name;
 
   const notifications = members.map((m: any) => ({
