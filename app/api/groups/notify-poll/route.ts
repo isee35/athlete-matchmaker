@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
   const { data: poll } = await supabase
     .from("availability_polls")
-    .select("title, groups(name, owner_id)")
+    .select("title, share_token, groups(name, owner_id)")
     .eq("id", poll_id)
     .single();
 
@@ -38,12 +38,15 @@ export async function POST(req: Request) {
   const creatorName = creatorProfile?.first_name || (creatorProfile?.username ? `@${creatorProfile.username}` : "Someone");
   const groupName = (poll.groups as any).name;
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const pollLink = poll.share_token ? `${baseUrl}/poll/${poll.share_token}` : `/groups/${group_id}/poll/${poll_id}`;
+
   const notifications = members.map((m: any) => ({
     user_id: m.user_id,
     type: "availability_overlap",
     title: `${creatorName} wants to know your availability`,
     body: `New poll in ${groupName}: "${poll.title}" — tap to mark when you're free.`,
-    action_url: `/groups/${group_id}/poll/${poll_id}`,
+    action_url: pollLink,
     read: false,
   }));
 

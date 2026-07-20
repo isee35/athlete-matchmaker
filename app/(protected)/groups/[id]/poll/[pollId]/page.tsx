@@ -4,6 +4,7 @@ import { Card } from "@/components/Card";
 import Link from "next/link";
 import { AvailabilityGrid } from "./AvailabilityGrid";
 import { OverlapHeatmap } from "./OverlapHeatmap";
+import { SharePollButton } from "./SharePollButton";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function PollDetail({
 
   const { data: poll } = await supabase
     .from("availability_polls")
-    .select("*, groups(name, sport_id, owner_id)")
+    .select("*, share_token, groups(name, sport_id, owner_id)")
     .eq("id", pollId)
     .single();
 
@@ -85,6 +86,7 @@ export default async function PollDetail({
               {poll.closes_at && ` · Closes ${new Date(poll.closes_at).toLocaleDateString()}`}
             </p>
           </div>
+          {poll.share_token && <SharePollButton shareToken={poll.share_token} />}
           <span className={`text-xs border px-3 py-1 rounded-full shrink-0 ${
             isClosed
               ? "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--border)]"
