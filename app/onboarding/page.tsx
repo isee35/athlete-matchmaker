@@ -184,7 +184,7 @@ function OnboardingInner() {
     const age = getAge(dob);
     const isMinor = age < 18;
 
-    const { error: profileError } = await supabase.from("profiles").insert({
+    const { error: profileError } = await supabase.from("profiles").upsert({
       id: user.id,
       username,
       first_name: firstName,
@@ -196,7 +196,7 @@ function OnboardingInner() {
       age_verified: !isMinor,
       parental_consent_pending: isMinor,
       parent_email: isMinor ? parentEmail.trim() : null,
-    });
+    }, { onConflict: "id" });
     if (profileError) { setError(profileError.message); setLoading(false); return; }
 
     // Store sensitive fields in the private table (own-only RLS)
