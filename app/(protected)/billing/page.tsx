@@ -33,6 +33,7 @@ export default async function BillingPage() {
         "Mark availability on polls",
         "Get notified when games are scheduled",
         "✗ Cannot create groups",
+        "✗ Cannot host lobbies",
       ],
     },
     {
@@ -44,8 +45,8 @@ export default async function BillingPage() {
       features: [
         `Join up to ${TIER_LIMITS.basic.memberOfMax} groups`,
         "Create 1 group",
-        "Send availability polls to your group",
-        "Heatmap scheduling + lobby creation",
+        "Host lobbies + send availability polls",
+        "Heatmap scheduling to find the best time",
       ],
     },
     {

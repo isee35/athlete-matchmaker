@@ -10,12 +10,21 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { use_purchased_slot, ...lobbyFields } = body;
 
-  // Fetch profile for badge
+  // Fetch profile for badge + subscription tier
   const { data: profile } = await supabase
     .from("profiles")
-    .select("badge, hosted_events_completed")
+    .select("badge, hosted_events_completed, subscription_tier")
     .eq("id", user.id)
     .single();
+
+  // Must be at least Basic to host lobbies
+  const subTier = (profile as any)?.subscription_tier ?? "free";
+  if (subTier === "free") {
+    return NextResponse.json({
+      error: "UPGRADE_REQUIRED",
+      message: "Hosting lobbies requires a Basic plan ($1.99/mo). Upgrade to create and manage events.",
+    }, { status: 403 });
+  }
 
   const badge = profile?.badge ?? null;
   const limit = getHostingLimit(badge);

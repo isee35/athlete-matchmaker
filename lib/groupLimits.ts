@@ -8,12 +8,13 @@ export const TIER_PRICES: Record<string, { monthly: number; label: string }> = {
 // Per-tier limits
 export const TIER_LIMITS: Record<SubscriptionTier, {
   canCreateGroups: boolean;
+  canHostLobbies: boolean;
   ownedGroupsMax: number;   // groups you can own/create
   memberOfMax: number;      // total group memberships (Infinity = unlimited)
 }> = {
-  free:  { canCreateGroups: false, ownedGroupsMax: 0,        memberOfMax: 1 },
-  basic: { canCreateGroups: true,  ownedGroupsMax: 1,        memberOfMax: 5 },
-  pro:   { canCreateGroups: true,  ownedGroupsMax: Infinity, memberOfMax: Infinity },
+  free:  { canCreateGroups: false, canHostLobbies: false, ownedGroupsMax: 0,        memberOfMax: 1 },
+  basic: { canCreateGroups: true,  canHostLobbies: true,  ownedGroupsMax: 1,        memberOfMax: 5 },
+  pro:   { canCreateGroups: true,  canHostLobbies: true,  ownedGroupsMax: Infinity, memberOfMax: Infinity },
 };
 
 export function getTierLimits(tier: SubscriptionTier | string | null) {

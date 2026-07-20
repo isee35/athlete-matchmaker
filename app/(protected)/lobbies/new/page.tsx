@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
 import { Button } from "@/components/Button";
@@ -29,6 +30,18 @@ export default function NewLobby() {
   const [limitData, setLimitData] = useState<{ badge: HostBadge; limit: number; openCount: number; purchasedSlots: number } | null>(null);
   const [pendingPayload, setPendingPayload] = useState<Record<string, unknown> | null>(null);
   const [paying, setPaying] = useState(false);
+  const [subTier, setSubTier] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function checkTier() {
+      const supabaseLocal = createClient();
+      const { data: { user } } = await supabaseLocal.auth.getUser();
+      if (!user) return;
+      const { data } = await supabaseLocal.from("profiles").select("subscription_tier").eq("id", user.id).single();
+      setSubTier((data as any)?.subscription_tier ?? "free");
+    }
+    checkTier();
+  }, []);
 
   // Pre-fill from match notification or poll heatmap
   const matchDate  = searchParams.get("date") ?? "";
@@ -116,6 +129,11 @@ export default function NewLobby() {
       return null;
     }
 
+    if (res.status === 403 && data.error === "UPGRADE_REQUIRED") {
+      setSubTier("free"); // forces upgrade wall to show
+      return null;
+    }
+
     if (!res.ok) {
       setError(data.error ?? "Could not create lobby.");
       return null;
@@ -162,6 +180,30 @@ export default function NewLobby() {
     setLimitData(null);
     setPendingPayload(null);
     window.location.href = `/lobbies/${lobbyId}`;
+  }
+
+  // Upgrade wall for free tier
+  if (subTier === "free") {
+    return (
+      <div className="p-6 max-w-lg space-y-6">
+        <div>
+          <h1 className="text-2xl font-black">Create Lobby</h1>
+        </div>
+        <div className="bg-[var(--surface)] border border-yellow-600/30 rounded-2xl p-8 space-y-4 text-center">
+          <p className="text-4xl">🔒</p>
+          <p className="text-lg font-bold">Upgrade to host lobbies</p>
+          <p className="text-sm text-[var(--muted-light)]">
+            Hosting lobbies requires a Basic plan ($1.99/mo). Upgrade to create events, send availability polls, and schedule games with your groups.
+          </p>
+          <Link href="/billing">
+            <Button variant="squad" className="w-full">View Plans</Button>
+          </Link>
+          <Link href="/dashboard" className="block text-xs text-[var(--muted)] hover:text-[var(--muted-light)]">
+            ← Back to dashboard
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
