@@ -4,12 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
+  const redirect = searchParams.get("redirect") ?? "";
 
   if (code) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user) {
-      // Check if profile exists
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
@@ -17,9 +17,12 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (!profile) {
-        return NextResponse.redirect(`${origin}/onboarding`);
+        const dest = redirect
+          ? `${origin}/onboarding?redirect=${encodeURIComponent(redirect)}`
+          : `${origin}/onboarding`;
+        return NextResponse.redirect(dest);
       }
-      return NextResponse.redirect(`${origin}/dashboard`);
+      return NextResponse.redirect(redirect ? `${origin}${redirect}` : `${origin}/dashboard`);
     }
   }
 

@@ -82,8 +82,18 @@ function AvailabilityGrid({
         p_response_date: date,
         p_slots: slots,
       });
-      if (fnErr || (data as any)?.error) {
-        setError((data as any)?.error ?? fnErr?.message ?? "Error saving");
+      if (fnErr) {
+        setError(fnErr.message ?? "Error saving");
+        setSaving(false);
+        return;
+      }
+      const result = data as any;
+      if (result?.error) {
+        if (result.error === "group_limit_reached") {
+          setError("Your free account can only be in 1 group. Complete 5 events to earn a Bronze badge and join more groups.");
+        } else {
+          setError(result.error);
+        }
         setSaving(false);
         return;
       }

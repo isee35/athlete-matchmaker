@@ -1,20 +1,22 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
-export default function Signup() {
-  const [email, setEmail]         = useState("");
-  const [password, setPassword]   = useState("");
-  const [confirm, setConfirm]     = useState("");
-  const [error, setError]         = useState("");
-  const [loading, setLoading]     = useState(false);
+function SignupForm() {
+  const [email, setEmail]       = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") ?? "";
   const supabase = createClient();
 
   async function handleSignup(e: React.FormEvent) {
@@ -23,22 +25,49 @@ export default function Signup() {
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true);
     setError("");
-    const { error } = await supabase.auth.signUp({
+
+    const { data, error: signupErr } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
-    if (error) { setError(error.message); setLoading(false); return; }
-    router.push("/onboarding");
+
+    if (signupErr) {
+      // Supabase returns "User already registered" for duplicate emails
+      if (signupErr.message.toLowerCase().includes("already registered") ||
+          signupErr.message.toLowerCase().includes("already exists")) {
+        setError("An account with this email already exists. Please sign in instead.");
+      } else {
+        setError(signupErr.message);
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Supabase silently "succeeds" for duplicate emails when confirmations are on —
+    // detect it by checking for an empty identities array.
+    if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+      setError("An account with this email already exists. Please sign in instead.");
+      setLoading(false);
+      return;
+    }
+
+    const onboardingUrl = redirect ? `/onboarding?redirect=${encodeURIComponent(redirect)}` : "/onboarding";
+    router.push(onboardingUrl);
   }
 
   async function handleGoogle() {
     setGoogleLoading(true);
+    const callbackUrl = redirect
+      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      : `${window.location.origin}/auth/callback`;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl },
     });
   }
+
+  const loginHref = redirect ? `/auth/login?redirect=${encodeURIComponent(redirect)}` : "/auth/login";
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--background)]">
@@ -49,13 +78,7 @@ export default function Signup() {
         </div>
 
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-4">
-          <Button
-            variant="secondary"
-            size="lg"
-            className="w-full"
-            loading={googleLoading}
-            onClick={handleGoogle}
-          >
+          <Button variant="secondary" size="lg" className="w-full" loading={googleLoading} onClick={handleGoogle}>
             <GoogleIcon />
             Sign up with Google
           </Button>
@@ -70,14 +93,21 @@ export default function Signup() {
             <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@email.com" />
             <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Min 8 characters" />
             <Input label="Confirm Password" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required placeholder="Re-enter password" />
-            {error && <p className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">{error}</p>}
+            {error && (
+              <div className="text-sm text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
+                {error}
+                {error.includes("already exists") && (
+                  <span> <Link href={loginHref} className="underline text-red-300 hover:text-red-200">Sign in →</Link></span>
+                )}
+              </div>
+            )}
             <Button type="submit" size="lg" className="w-full" loading={loading}>Create Account</Button>
           </form>
         </div>
 
         <p className="text-center text-sm text-[var(--muted)]">
           Already have an account?{" "}
-          <Link href="/auth/login" className="text-teal-400 hover:text-teal-300">Sign in</Link>
+          <Link href={loginHref} className="text-teal-400 hover:text-teal-300">Sign in</Link>
         </p>
         <p className="text-center text-xs text-[var(--muted)]">
           By creating an account you agree to our{" "}
@@ -89,6 +119,10 @@ export default function Signup() {
       </div>
     </main>
   );
+}
+
+export default function Signup() {
+  return <Suspense><SignupForm /></Suspense>;
 }
 
 function GoogleIcon() {

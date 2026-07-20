@@ -1,19 +1,21 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 
-export default function Login() {
-  const [email, setEmail]     = useState("");
+function LoginForm() {
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError]     = useState("");
-  const [loading, setLoading] = useState(false);
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect") ?? "";
   const supabase = createClient();
 
   async function handleLogin(e: React.FormEvent) {
@@ -22,17 +24,22 @@ export default function Login() {
     setError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) { setError(error.message); setLoading(false); return; }
-    router.push("/dashboard");
+    router.push(redirect || "/dashboard");
     router.refresh();
   }
 
   async function handleGoogle() {
     setGoogleLoading(true);
+    const callbackUrl = redirect
+      ? `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      : `${window.location.origin}/auth/callback`;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callbackUrl },
     });
   }
+
+  const signupHref = redirect ? `/auth/signup?redirect=${encodeURIComponent(redirect)}` : "/auth/signup";
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-[var(--background)]">
@@ -43,13 +50,7 @@ export default function Login() {
         </div>
 
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 space-y-4">
-          <Button
-            variant="secondary"
-            size="lg"
-            className="w-full"
-            loading={googleLoading}
-            onClick={handleGoogle}
-          >
+          <Button variant="secondary" size="lg" className="w-full" loading={googleLoading} onClick={handleGoogle}>
             <GoogleIcon />
             Continue with Google
           </Button>
@@ -70,11 +71,15 @@ export default function Login() {
 
         <p className="text-center text-sm text-[var(--muted)]">
           No account?{" "}
-          <Link href="/auth/signup" className="text-teal-400 hover:text-teal-300">Create one free</Link>
+          <Link href={signupHref} className="text-teal-400 hover:text-teal-300">Create one free</Link>
         </p>
       </div>
     </main>
   );
+}
+
+export default function Login() {
+  return <Suspense><LoginForm /></Suspense>;
 }
 
 function GoogleIcon() {

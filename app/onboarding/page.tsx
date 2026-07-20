@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { SPORTS, SPORT_CATEGORIES, getSportsByCategory } from "@/lib/sports";
 import { AvailabilityPicker, RecurringBlock, SpecificBlock, recurringToDB, specificToDB } from "@/components/AvailabilityPicker";
@@ -28,11 +28,13 @@ const US_STATES = [
 ];
 
 
-export default function Onboarding() {
+function OnboardingInner() {
   const [step, setStep] = useState<Step>("profile");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectAfter = searchParams.get("redirect") ?? "";
   const supabase = createClient();
 
   // Step 1 — Profile
@@ -233,7 +235,7 @@ export default function Onboarding() {
 
     await supabase.from("notification_preferences").insert({ user_id: user.id });
 
-    router.push("/dashboard");
+    router.push(redirectAfter || "/dashboard");
     router.refresh();
   }
 
@@ -538,4 +540,8 @@ export default function Onboarding() {
       </div>
     </main>
   );
+}
+
+export default function Onboarding() {
+  return <Suspense><OnboardingInner /></Suspense>;
 }
