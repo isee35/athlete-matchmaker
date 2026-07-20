@@ -191,8 +191,6 @@ function OnboardingInner() {
       last_name: lastName,
       city,
       state,
-      dob,
-      phone: phone.trim() || null,
       onboarding_complete: true,
       is_minor: isMinor,
       age_verified: !isMinor,
@@ -200,6 +198,13 @@ function OnboardingInner() {
       parent_email: isMinor ? parentEmail.trim() : null,
     });
     if (profileError) { setError(profileError.message); setLoading(false); return; }
+
+    // Store sensitive fields in the private table (own-only RLS)
+    await supabase.from("profiles_private").upsert({
+      user_id: user.id,
+      dob: dob || null,
+      phone: phone.trim() || null,
+    });
 
     // Create parental consent record for minors
     if (isMinor && parentEmail.trim()) {
