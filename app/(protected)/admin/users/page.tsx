@@ -29,7 +29,7 @@ export default async function AdminUsersPage({
 
   let query = supabase
     .from("profiles")
-    .select("id, username, first_name, last_name, role, is_minor, parental_consent_pending, lobby_count, created_at, city, state, soft_flag, no_show_count, signup_number, plan")
+    .select("id, username, first_name, last_name, role, is_minor, parental_consent_pending, lobby_count, created_at, city, state, soft_flag, no_show_count, signup_number, plan, subscription_tier")
     .order("created_at", { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1);
 
@@ -137,7 +137,7 @@ export default async function AdminUsersPage({
               <Link href={`/admin/users/${u.id}`} className="text-xs text-teal-400 hover:text-teal-300">
                 View →
               </Link>
-              <AdminUserActions userId={u.id} isFlagged={u.soft_flag} isAdmin={u.role === "admin"} />
+              <AdminUserActions userId={u.id} isFlagged={u.soft_flag} isAdmin={u.role === "admin"} subscriptionTier={u.subscription_tier ?? "free"} />
             </div>
           </div>
         ))}
