@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { getGroupLimit } from "@/lib/groupLimits";
+import { getTierLimits, memberLimitMessage } from "@/lib/groupLimits";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -29,17 +29,18 @@ export async function POST(req: Request) {
 
   if (action === "accept") {
     // Enforce group membership limit
-    const { data: profile } = await supabase.from("profiles").select("badge").eq("id", user.id).single();
-    const limit = getGroupLimit((profile as any)?.badge ?? null);
-    if (isFinite(limit)) {
+    const { data: profile } = await supabase.from("profiles").select("subscription_tier").eq("id", user.id).single();
+    const tier = (profile as any)?.subscription_tier ?? "free";
+    const limits = getTierLimits(tier);
+    if (isFinite(limits.memberOfMax)) {
       const { count } = await supabase
         .from("group_members")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id);
-      if ((count ?? 0) >= limit) {
+      if ((count ?? 0) >= limits.memberOfMax) {
         return NextResponse.json({
-          error: "GROUP_LIMIT_REACHED",
-          message: `Free accounts can only be in ${limit} group. Earn a Bronze badge by completing ${5} events to unlock more.`,
+          error: "UPGRADE_REQUIRED",
+          message: memberLimitMessage(tier),
         }, { status: 403 });
       }
     }

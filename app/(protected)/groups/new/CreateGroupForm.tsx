@@ -1,47 +1,59 @@
 "use client";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import { Button } from "@/components/Button";
 import { Input } from "@/components/Input";
 import { SPORTS } from "@/lib/sports";
 
 export function CreateGroupForm() {
-  const [name, setName] = useState("");
-  const [sportId, setSportId] = useState("");
+  const [name, setName]             = useState("");
+  const [sportId, setSportId]       = useState("");
   const [description, setDescription] = useState("");
-  const [isPublic, setIsPublic] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const supabase = createClient();
+  const [isPublic, setIsPublic]     = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !sportId) {
-      setError("Group name and sport are required.");
-      return;
-    }
+    if (!name.trim() || !sportId) { setError("Group name and sport are required."); return; }
     setLoading(true);
     setError(null);
+    setUpgradeMsg(null);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError("Not signed in."); setLoading(false); return; }
+    const res = await fetch("/api/groups/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), sport_id: sportId, description: description.trim() || null, is_public: isPublic }),
+    });
+    const data = await res.json();
+    setLoading(false);
 
-    const { data: group, error: groupErr } = await supabase
-      .from("groups")
-      .insert({ name: name.trim(), sport_id: sportId, owner_id: user.id, description: description.trim() || null, is_public: isPublic })
-      .select("id")
-      .single();
-
-    if (groupErr || !group) {
-      setError(groupErr?.message ?? "Failed to create group.");
-      setLoading(false);
+    if (!res.ok) {
+      if (data.error === "UPGRADE_REQUIRED") { setUpgradeMsg(data.message); return; }
+      setError(data.error ?? "Failed to create group.");
       return;
     }
 
-    // Auto-add owner as member with role 'owner'
-    await supabase.from("group_members").insert({ group_id: group.id, user_id: user.id, role: "owner" });
+    window.location.href = `/groups/${data.group_id}`;
+  }
 
-    window.location.href = `/groups/${group.id}`;
+  if (upgradeMsg) {
+    return (
+      <div className="space-y-5">
+        <div className="bg-[var(--surface)] border border-yellow-600/30 rounded-2xl p-6 space-y-4 text-center">
+          <p className="text-3xl">🔒</p>
+          <p className="font-bold text-lg">Upgrade to create groups</p>
+          <p className="text-sm text-[var(--muted-light)]">{upgradeMsg}</p>
+          <Link href="/billing">
+            <Button variant="squad" className="w-full">View Plans</Button>
+          </Link>
+          <button onClick={() => setUpgradeMsg(null)} className="text-xs text-[var(--muted)] hover:text-[var(--muted-light)] cursor-pointer">
+            ← Back
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -70,7 +82,9 @@ export function CreateGroupForm() {
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-[var(--muted-light)]">Description <span className="text-[var(--muted)] font-normal">(optional)</span></label>
+        <label className="text-sm font-medium text-[var(--muted-light)]">
+          Description <span className="text-[var(--muted)] font-normal">(optional)</span>
+        </label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -80,7 +94,6 @@ export function CreateGroupForm() {
         />
       </div>
 
-      {/* Public / Private toggle */}
       <div className="flex items-center justify-between bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-4 py-3">
         <div>
           <p className="text-sm font-medium">{isPublic ? "🌐 Public group" : "🔒 Private group"}</p>

@@ -89,11 +89,9 @@ function AvailabilityGrid({
       }
       const result = data as any;
       if (result?.error) {
-        if (result.error === "group_limit_reached") {
-          setError("Your free account can only be in 1 group. Complete 5 events to earn a Bronze badge and join more groups.");
-        } else {
-          setError(result.error);
-        }
+        setError(result.error === "group_limit_reached"
+          ? "Free accounts can join 1 group. Upgrade to Basic ($1.99/mo) to join up to 5 groups."
+          : result.error);
         setSaving(false);
         return;
       }

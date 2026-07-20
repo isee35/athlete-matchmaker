@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getTierLimits, createLimitMessage, memberLimitMessage } from "@/lib/groupLimits";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -9,10 +10,29 @@ export async function POST(req: Request) {
   const { target_user_id, group_id, new_group_name, sport_id } = await req.json();
   if (!target_user_id) return NextResponse.json({ error: "Missing target_user_id" }, { status: 400 });
 
+  // Fetch caller's tier once — used for both create and invite paths
+  const { data: callerProfile } = await supabase
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", user.id)
+    .single();
+  const callerTier = (callerProfile as any)?.subscription_tier ?? "free";
+  const callerLimits = getTierLimits(callerTier);
+
   let finalGroupId = group_id;
 
   if (!group_id) {
     if (!new_group_name?.trim()) return NextResponse.json({ error: "Group name required" }, { status: 400 });
+
+    if (!callerLimits.canCreateGroups) {
+      return NextResponse.json({ error: "UPGRADE_REQUIRED", message: createLimitMessage(callerTier) }, { status: 403 });
+    }
+    if (isFinite(callerLimits.ownedGroupsMax)) {
+      const { count } = await supabase.from("groups").select("id", { count: "exact", head: true }).eq("owner_id", user.id);
+      if ((count ?? 0) >= callerLimits.ownedGroupsMax) {
+        return NextResponse.json({ error: "UPGRADE_REQUIRED", message: createLimitMessage(callerTier) }, { status: 403 });
+      }
+    }
 
     const { data: newGroup, error: groupErr } = await supabase
       .from("groups")

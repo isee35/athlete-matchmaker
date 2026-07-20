@@ -77,9 +77,7 @@ export default function JoinGroupPage() {
     const data = await res.json();
     setJoining(false);
     if (!res.ok) {
-      setError(data.error === "GROUP_LIMIT_REACHED"
-        ? "Your free account can only be in 1 group. Complete 5 events to earn a Bronze badge and unlock more."
-        : data.error ?? "Something went wrong");
+      setError(data.error === "UPGRADE_REQUIRED" ? data.message : data.error ?? "Something went wrong");
       return;
     }
     setDone(true);

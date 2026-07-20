@@ -2,12 +2,21 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { Card } from "@/components/Card";
 import { getSportById } from "@/lib/sports";
+import { getTierLimits } from "@/lib/groupLimits";
 
 export const dynamic = "force-dynamic";
 
 export default async function GroupsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: profileRow } = await supabase
+    .from("profiles")
+    .select("subscription_tier")
+    .eq("id", user!.id)
+    .single();
+  const tier = (profileRow as any)?.subscription_tier ?? "free";
+  const limits = getTierLimits(tier);
 
   // Groups I own
   const { data: ownedGroups } = await supabase
@@ -40,13 +49,33 @@ export default async function GroupsPage() {
           <h1 className="text-2xl font-black">Your Groups</h1>
           <p className="text-sm text-[var(--muted-light)] mt-1">Private circles for scheduling with your people.</p>
         </div>
-        <Link
-          href="/groups/new"
-          className="bg-gradient-to-r from-teal-600 to-pink-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity"
-        >
-          + New Group
-        </Link>
+        {limits.canCreateGroups ? (
+          <Link
+            href="/groups/new"
+            className="bg-gradient-to-r from-teal-600 to-pink-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity"
+          >
+            + New Group
+          </Link>
+        ) : (
+          <Link
+            href="/billing"
+            className="bg-[var(--surface-2)] border border-[var(--border)] text-[var(--muted-light)] px-4 py-2 rounded-xl text-sm hover:border-teal-600/50 transition-colors"
+          >
+            🔒 Upgrade to create
+          </Link>
+        )}
       </div>
+
+      {/* Free tier info banner */}
+      {tier === "free" && (
+        <div className="bg-[var(--surface)] border border-yellow-600/20 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-[var(--muted-light)]">
+            <span className="font-semibold text-yellow-400">Free plan</span> — you can join 1 group.
+            Upgrade to Basic ($1.99/mo) to create groups and join up to 5.
+          </p>
+          <Link href="/billing" className="text-xs text-teal-400 hover:text-teal-300 shrink-0">Upgrade →</Link>
+        </div>
+      )}
 
       {allGroups.length > 0 ? (
         <div className="space-y-3">
